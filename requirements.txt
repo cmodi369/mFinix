@@ -1,0 +1,8 @@
+black>=24.4.2,<25
+bokeh>=3.4.1,<4
+Jupyter>=1.0.0,<2
+numpy>=1.26.4,<2
+pandas>=2.2.2,<3
+matplotlib>=3.8.4
+yfinance
+isort

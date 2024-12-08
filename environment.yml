@@ -1,0 +1,9 @@
+name: mfinix_dev
+channels:
+  - defaults
+dependencies:
+  - python=3.11.5
+  - pip>=24.0
+  - pip:
+  # works for regular pip packages
+    - r requirements.txt
