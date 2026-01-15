@@ -1,18 +1,32 @@
 from typing import List
 
 import pandas as pd
-from corporate_actions import add_corporate_actions_in_tradebook
 
 import mFinix.constants.constants as const
-from mFinix.constants.columns import ISIN, QUANTITY, SYMBOL, TRADE_TYPE
+import mFinix.core.data_management as dm
+from mFinix.constants.columns import ISIN, QUANTITY, SYMBOL, TOTAL_QUANTITY, TRADE_TYPE
+from mFinix.core.corporate_actions import (
+    add_corporate_actions_in_tradebook,
+    automatic_update_corporate_actions_data,
+)
 
 
-def get_latest_portfolio_stocks(trade_data: pd.DataFrame) -> List[str]:
-    # TODO: Remove duplicates
+def get_portfolio_stocks(trade_data: pd.DataFrame) -> pd.DataFrame:
+    # find latest row with quantity for each stock
+    last_rows = (
+        trade_data[trade_data[TRADE_TYPE].isin([const.BUY, const.SELL])]
+        .groupby(ISIN)
+        .last()
+    )
 
-    # find stocks where buy quantity is more than sell quantity
-    data = trade_data.pivot_table(
-        index=ISIN, columns=TRADE_TYPE, values=QUANTITY, aggfunc="sum", fill_value=0
-    ).reset_index()
+    # filter stocks with total quantity not equal to 0
+    portfolio_data = last_rows[last_rows[TOTAL_QUANTITY].ne(0)]
 
-    return data[~data[const.BUY].eq(data[const.SELL])][SYMBOL].tolist()
+    return portfolio_data
+
+
+def prepare_transactions_data():
+    tradebook_df = dm.read_tradebook_data()
+    updated_trade_data = add_corporate_actions_in_tradebook(tradebook_df)
+
+    return updated_trade_data

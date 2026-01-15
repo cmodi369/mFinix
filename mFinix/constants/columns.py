@@ -18,4 +18,7 @@ STOCK_SPLITS: str = "Stock Splits"
 DIVIDEND_COL: str = DIVIDEND.lower().replace(" ", "_")
 STOCK_SPLITS_COL: str = STOCK_SPLITS.lower().replace(" ", "_")
 
-TOTAL_QUANTITY: str = "total_quantity"
+# column names used in the project
+CURRENT_PRICE: str = "current_price"
+TOTAL_QUANTITY: str = "balanced_quantity"
+XIRR: str = "xirr"

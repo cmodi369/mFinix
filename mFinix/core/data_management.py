@@ -1,22 +1,14 @@
-from datetime import datetime, timedelta
-from typing import List
+from datetime import date, datetime, timedelta
+from typing import Iterator, List, Union
 
+import numpy as np
 import pandas as pd
 import yfinance as yf
 
+import mFinix.constants.columns as col
+
 # module specific constants
 import mFinix.constants.constants as const
-from mFinix.constants.columns import (
-    ISIN,
-    POSTING_DATE,
-    PRICE,
-    QUANTITY,
-    SYMBOL,
-    TOTAL_QUANTITY,
-    TRADE_DATE,
-    TRADE_TYPE,
-    TRANSACTION_AMOUNT,
-)
 
 
 def read_ledger_data():
@@ -34,7 +26,7 @@ def read_ledger_data():
     latest_file = max(files, key=lambda f: f.stat().st_mtime)
 
     ledger_data = pd.read_csv(latest_file).dropna()
-    ledger_data[POSTING_DATE] = pd.to_datetime(ledger_data[POSTING_DATE])
+    ledger_data[col.POSTING_DATE] = pd.to_datetime(ledger_data[col.POSTING_DATE])
 
     return ledger_data
 
@@ -50,27 +42,65 @@ def read_tradebook_data():
     )
 
     # format datetime column
-    ret_data[TRADE_DATE] = pd.to_datetime(ret_data[TRADE_DATE])
+    ret_data[col.TRADE_DATE] = pd.to_datetime(ret_data[col.TRADE_DATE]).dt.date
 
     # sort data based on trading dates
-    ret_data = ret_data.sort_values(by=[TRADE_DATE, TRADE_TYPE]).reset_index(drop=True)
+    ret_data = ret_data.sort_values(by=[col.TRADE_DATE, col.TRADE_TYPE]).reset_index(
+        drop=True
+    )
 
     # set negative price for sell transactions
-    ret_data.loc[ret_data[TRADE_TYPE].eq("sell"), QUANTITY] = ret_data[QUANTITY] * -1
-    ret_data[TRANSACTION_AMOUNT] = ret_data[PRICE] * ret_data[QUANTITY]
+    ret_data.loc[ret_data[col.TRADE_TYPE].eq(const.SELL), col.QUANTITY] = (
+        ret_data[col.QUANTITY] * -1
+    )
+    ret_data[col.TRANSACTION_AMOUNT] = ret_data[col.PRICE] * ret_data[col.QUANTITY]
 
     # calculate total quantity
-    ret_data[TOTAL_QUANTITY] = ret_data.groupby(ISIN)[QUANTITY].cumsum()
+    ret_data[col.TOTAL_QUANTITY] = ret_data.groupby(col.ISIN)[col.QUANTITY].cumsum()
 
-    ret_data[SYMBOL] = ret_data[SYMBOL].str.split("-").str[0]
+    ret_data[col.SYMBOL] = ret_data[col.SYMBOL].str.split("-").str[0]
 
     return ret_data
 
 
-def fetch_latest_stock_prices(stocks: List[str]):
-    start = datetime.today() - timedelta(
-        3
-    )  # Always retrieve data for past 3 days and re-adjust local file.
-    data = yf.download(stocks, start=start)["Adj Close"]
+def fetch_stocks_price(
+    stocks: Union[str, Iterator], on_date: date = date.today(), offset_days: int = 4
+) -> pd.Series:
+    stocks = coerce_to_list(stocks)
+
+    start = on_date - timedelta(offset_days)
+
+    data = _download_tickers_price_from_yfinance(stocks, start, on_date)
 
     return data
+
+
+def _download_tickers_price_from_yfinance(
+    tickers: List[str], start_date: date, end_date: date
+) -> pd.Series:
+    df = yf.download(
+        tickers,
+        start=start_date,
+        end=end_date,
+        group_by="ticker",
+        progress=False,
+        threads=True,
+    )
+
+    out = {}
+
+    for t in tickers:
+        if t in df.columns.get_level_values(0):
+            out[t] = df[t]["Close"].iloc[-1]
+        else:
+            out[t] = np.nan
+
+    ret_data = pd.Series(out, name="latest_close")
+
+    return ret_data
+
+
+def coerce_to_list(inputs) -> list:
+    if isinstance(inputs, str):
+        return [inputs]
+    return list(inputs)

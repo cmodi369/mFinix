@@ -1,0 +1,157 @@
+from typing import Any, Optional
+
+import numpy as np
+import panel as pn
+
+import mFinix.constants.columns as col
+import mFinix.constants.constants as const
+import mFinix.constants.panel_constants as pn_const
+import mFinix.webapp.webapp_constants as webapp_const
+from mFinix.core.xirr_calculation import calculate_stock_xirr_from_transactions
+from mFinix.util import log
+from mFinix.webapp.tab_stocks.event_entry_layout import EventDataManager
+from mFinix.webapp.tab_stocks.transactions_layout import TransactionsManager
+from mFinix.webapp.tab_stocks.utility import prepare_stocks_tab_data
+
+
+class TabStocks:
+    NAME: str = "Stocks"
+
+    ICON: str = "clipboard-data"
+
+    def __init__(self, data: dict[str, Any], widgets: dict[str, Any]):
+        self.data = data
+        self.widgets = widgets
+
+        if "stocks_tab" not in self.data:
+            # initialize stocks tab data dictionary
+            self.tab_data = self.data["stocks_tab"] = {}
+
+            # prepare all required datasets
+            self.tab_data.update(prepare_stocks_tab_data())
+
+        # initialize tab widgets
+        self.tab_widgets = self.widgets["stocks_tab"] = {}
+        self.tab_widgets = self._initialize_widgets()
+
+        # initialize event data manager
+        self.event_manager = EventDataManager(self.tab_data, self.tab_widgets)
+
+        # initialize transactions manager
+        self.transactions_manager = TransactionsManager(self.tab_data, self.tab_widgets)
+
+        # add callbacks
+        self._add_callbacks()
+
+        # initialize tab layout
+        self._menu_layout = pn.Row(
+            self.tab_widgets["tools_menu"],
+            styles={"border-bottom": "1px solid black"},
+            sizing_mode="stretch_width",
+        )
+        self.layout = pn.Column()
+        self._initial_layout()
+
+        log.info("%s tab initialized successfully.", self.NAME)
+
+    def _initialize_widgets(self):
+        """Initialize tab widgets"""
+
+        widgets = {}
+
+        widgets["tools_menu"] = pn.widgets.MenuButton(
+            name="Tools",
+            icon="category",
+            items=webapp_const.STOCK_MENU_OPTIONS,
+            button_type="light",
+            width=200,
+            margin=0,
+        )
+
+        widgets["portfolio_xirr_text"] = pn.indicators.Number(
+            name="Portfolio XIRR",
+            value=self.tab_data["portfolio_xirr"],
+            format="{value}%",
+        )
+
+        col_name_mapping = {
+            col.ISIN: "Symbol",
+            col.SYMBOL: "Stock Name",
+            col.CURRENT_PRICE: "Price",
+            col.TOTAL_QUANTITY: "Quantity",
+            col.XIRR: "XIRR",
+        }
+        widgets["stocks_xirr_table"] = pn.widgets.Tabulator(
+            self.tab_data["stocks_xirr_data"][col_name_mapping.keys()],
+            header_filters=True,
+            layout="fit_data",
+            pagination="local",
+            buttons={
+                "open": "<i class='fa fa-list-alt'></i>",
+                "edit": "<i class='fa fa-pencil-square'></i>",
+            },
+            titles=col_name_mapping,
+            disabled=True,
+        )
+
+        # add styles
+        widgets["stocks_xirr_table"].style.apply(
+            self._apply_table_row_color,
+            props="color:white;background-color:red",
+            axis=1,
+            subset=[col.TOTAL_QUANTITY],
+        )
+
+        return widgets
+
+    def _add_callbacks(self) -> None:
+        """Add all callbacks"""
+
+        self.tab_widgets["stocks_xirr_table"].on_click(self._table_click_cb)
+        self.tab_widgets["tools_menu"].on_click(self._open_selected_layout)
+
+        self.event_manager.widgets["submit_button"].on_click(self._initial_layout)
+        self.event_manager.widgets["cancel_button"].on_click(self._initial_layout)
+
+    def _open_selected_layout(self, event):
+        """Open Selected Layout"""
+        layout_mapping_dict = {
+            webapp_const.StockMenuOptions.SHOW_PORTFOLIO: self._initial_layout,
+            webapp_const.StockMenuOptions.SHOW_TRANSACTIONS: self._open_transactions_window,
+            webapp_const.StockMenuOptions.ADD_MANUAL_EVENTS: self._open_event_entry_window,
+        }
+
+        layout_mapping_dict[event.new]()
+
+    @staticmethod
+    def _apply_table_row_color(val, props=""):
+        """Function to highlight rows with negative values in the 'quantity' column"""
+        return np.where(val < 0, props, "")
+
+    def _open_transactions_window(self, selected_isin: Optional[str] = None):
+        self.transactions_manager.initialize()
+        self.transactions_manager.show_selected_transactions(selected_isin)
+        self.layout.objects = [self._menu_layout] + self.transactions_manager.layout
+
+    def _open_event_entry_window(self):
+        self.event_manager.initialize()
+        self.layout.objects = [self._menu_layout] + self.event_manager.layout
+
+    def _table_click_cb(self, event):
+        selected_isin = self.tab_data["stocks_xirr_data"][
+            self.tab_data["stocks_xirr_data"].index == event.row
+        ][col.ISIN].item()
+        if event.column == "open":
+            self._open_transactions_window(selected_isin)
+
+        elif event.column == "edit":
+            self._open_event_entry_window()
+
+    def _initial_layout(self):
+        """Initialize tab layout"""
+
+        self.layout.objects = [
+            self._menu_layout,
+            self.tab_widgets["portfolio_xirr_text"],
+            pn.Row(self.tab_widgets["stocks_xirr_table"]),
+        ]

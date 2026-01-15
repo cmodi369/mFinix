@@ -1,30 +1,33 @@
 """Logging functionality"""
 import logging
 import sys
+from dataclasses import dataclass
 
 
+@dataclass
 class LogConfig:
-    NAME: str = "mfinix"
-    FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    LOGGER_LEVEL = logging.INFO
-    CONSOLE_LEVEL = logging.DEBUG
+    name: str = "mfinix"
+    format: str = "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
+    logger_level = logging.INFO
+    console_level = logging.DEBUG
 
 
 class Logger:
     @staticmethod
-    def get_logger():
+    def get_logger(name: str = LogConfig.name):
         # get logger
-        logger = logging.getLogger(LogConfig.NAME)
+        logger = logging.getLogger(name)
 
         if not logger.handlers:
-            Logger.create_logger()
+            Logger.create_logger(name)
 
         return logger
 
     @classmethod
-    def create_logger(cls):
-        logger = logging.getLogger(LogConfig.NAME)
-        logger.setLevel(LogConfig.LOGGER_LEVEL)
+    def create_logger(cls, name: str):
+        logger = logging.getLogger(name)
+        logger.setLevel(LogConfig.logger_level)
+        logger.propagate = False
 
         logger.addHandler(Logger._add_console_handler())
         # logger.addHandler(Logger._add_file_handler())
@@ -32,16 +35,16 @@ class Logger:
     @staticmethod
     def _add_console_handler():
         handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(LogConfig.CONSOLE_LEVEL)
-        handler.setFormatter(logging.Formatter(LogConfig.FORMAT))
+        handler.setLevel(LogConfig.console_level)
+        handler.setFormatter(logging.Formatter(LogConfig.format))
 
         return handler
 
     @staticmethod
     def _add_file_handler():
         handler = logging.FileHandler(filename="app.log")
-        handler.setLevel(LogConfig.CONSOLE_LEVEL)
-        handler.setFormatter(logging.Formatter(LogConfig.FORMAT))
+        handler.setLevel(LogConfig.console_level)
+        handler.setFormatter(logging.Formatter(LogConfig.format))
 
         return handler
 
