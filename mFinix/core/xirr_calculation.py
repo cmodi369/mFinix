@@ -81,14 +81,17 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
     stocks_xirr_df = (
         full_xirr_data.groupby([col.ISIN, col.SYMBOL], as_index=False)
         .apply(
-            lambda group: xirr(
-                group[col.TRADE_DATE].tolist(), group[col.TRANSACTION_AMOUNT].tolist()
+            lambda group: (
+                xirr(
+                    group[col.TRADE_DATE].tolist(),
+                    group[col.TRANSACTION_AMOUNT].tolist(),
+                )
+                if (
+                    group[col.TRANSACTION_AMOUNT].gt(0).any()
+                    and group[col.TRANSACTION_AMOUNT].lt(0).any()
+                )
+                else None
             )
-            if (
-                group[col.TRANSACTION_AMOUNT].gt(0).any()
-                and group[col.TRANSACTION_AMOUNT].lt(0).any()
-            )
-            else None
         )
         .rename(columns={None: col.XIRR})
     )
@@ -105,7 +108,7 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
     # calculate stocks XIRR
     ret_data_dict["stocks_xirr_data"] = portfolio_stocks.merge(
         stocks_xirr_df, how="inner", on=[col.ISIN, col.SYMBOL]
-    )
+    ).sort_values(by=col.SYMBOL)
 
     return ret_data_dict
 

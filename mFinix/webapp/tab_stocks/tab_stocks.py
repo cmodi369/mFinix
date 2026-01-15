@@ -2,6 +2,7 @@ from typing import Any, Optional
 
 import numpy as np
 import panel as pn
+from bokeh.models.widgets.tables import NumberFormatter
 
 import mFinix.constants.columns as col
 import mFinix.constants.constants as const
@@ -69,9 +70,9 @@ class TabStocks:
         )
 
         widgets["portfolio_xirr_text"] = pn.indicators.Number(
-            name="Portfolio XIRR",
+            name="XIRR",
             value=self.tab_data["portfolio_xirr"],
-            format="{value}%",
+            format="{value:.2f}%",
         )
 
         col_name_mapping = {
@@ -86,6 +87,11 @@ class TabStocks:
             header_filters=True,
             layout="fit_data",
             pagination="local",
+            formatters={
+                col.XIRR: NumberFormatter(format="0.00%"),
+                col.QUANTITY: NumberFormatter(format="0,0"),
+                col.CURRENT_PRICE: NumberFormatter(format="0,0.00"),
+            },
             buttons={
                 "open": "<i class='fa fa-list-alt'></i>",
                 "edit": "<i class='fa fa-pencil-square'></i>",

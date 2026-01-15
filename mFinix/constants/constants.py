@@ -17,7 +17,9 @@ HEADERS: dict = {
 
 NSE_URL: str = "https://www.nseindia.com"
 NSE_STOCK_URL: str = "https://www.nseindia.com/get-quotes/equity?symbol={stock_name}"
-NSE_CORP_ACTIONS_URL: str = "https://www.nseindia.com/api/corp-info?symbol={stock_name}&corpType=corpactions&market=equities"
+NSE_CORP_ACTIONS_URL: str = (
+    "https://www.nseindia.com/api/corp-info?symbol={stock_name}&corpType=corpactions&market=equities"
+)
 
 # local corporate_actions data file name
 LOCAL_DATA_PATH: Path = Path(Path(__file__).parents[1], ".data")

@@ -1,4 +1,5 @@
 """Logging functionality"""
+
 import logging
 import sys
 from dataclasses import dataclass
