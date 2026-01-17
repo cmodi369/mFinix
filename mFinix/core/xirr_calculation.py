@@ -106,9 +106,11 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
     )
 
     # calculate stocks XIRR
-    ret_data_dict["stocks_xirr_data"] = portfolio_stocks.merge(
-        stocks_xirr_df, how="inner", on=[col.ISIN, col.SYMBOL]
-    ).sort_values(by=col.SYMBOL)
+    ret_data_dict["stocks_xirr_data"] = (
+        portfolio_stocks.merge(stocks_xirr_df, how="inner", on=[col.ISIN, col.SYMBOL])
+        .sort_values(by=col.SYMBOL)
+        .reset_index(drop=True)
+    )
 
     return ret_data_dict
 
