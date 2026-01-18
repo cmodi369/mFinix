@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 from functools import reduce
 from pathlib import Path
@@ -6,11 +5,11 @@ from typing import List
 
 import numpy as np
 import pandas as pd
-import requests
 import yfinance as yf
 
 import mFinix.constants.columns as col
 import mFinix.constants.constants as const
+from mFinix.core.nse_webscraping import extract_dividend_data
 from mFinix.util import log
 
 
@@ -36,7 +35,7 @@ def automatic_update_corporate_actions_data(trade_data: pd.DataFrame):
                 stock_name = trade_data[trade_data[col.ISIN] == stock_id][
                     col.SYMBOL
                 ].unique()[0]
-                actions_data = _read_corporate_actions_from_nse_webscrapping(stock_name)
+                actions_data = extract_dividend_data(stock_name)
 
         else:
             actions_data.index = actions_data.index.tz_localize(None)
@@ -149,48 +148,6 @@ def add_corporate_actions_in_tradebook(trade_data: pd.DataFrame):
     )
 
     return ret_data
-
-
-def _read_corporate_actions_from_nse_webscrapping(stock_name: str):
-    log.info("Pull information through web scrapping for %s", stock_name)
-    ret_data = pd.DataFrame()
-    try:
-        session = requests.session()
-        session.get(const.NSE_URL, headers=const.HEADERS)
-        session.get(
-            const.NSE_STOCK_URL.format(stock_name=stock_name), headers=const.HEADERS
-        )  # to save cookies
-        webdata = session.get(
-            const.NSE_CORP_ACTIONS_URL.format(stock_name=stock_name),
-            headers=const.HEADERS,
-        )
-        corp_data = pd.DataFrame(webdata.json())
-
-        # get dividend information before merger
-        corp_data = corp_data.replace("-", np.nan)
-        dividend_data = corp_data[corp_data["subject"].str.contains("Dividend")]
-
-        if not dividend_data.empty:
-            # Create a new DataFrame with dates and summed float dividend values
-            ret_data = pd.DataFrame(
-                {
-                    col.DIVIDEND: dividend_data["subject"].apply(_sum_floats).values,
-                    col.STOCK_SPLITS: np.nan,
-                },
-                index=pd.to_datetime(dividend_data["exDate"]),
-            )
-
-    except Exception as exc:
-        log.warning("NSE data query failed for %s with %s", stock_name, str(exc))
-    return ret_data
-
-
-def _sum_floats(text):
-    # Function to extract all float values and sum them
-    # Regular expression to match floats
-    pattern = r"\b\d+\.\d+|\b\d+\b"
-    floats = [float(x) for x in re.findall(pattern, text)]
-    return sum(floats)
 
 
 def _read_local_corporate_actions_data():
