@@ -587,7 +587,7 @@ def extract_past_ipo_data(
     """Extract IPO data for a stock from NSE.
 
     Convenience function that creates necessary components and extracts
-    IPO data (price, date, quantity) in a single call.
+    IPO data (price, date) in a single call.
 
     Parameters
     ----------
@@ -600,7 +600,7 @@ def extract_past_ipo_data(
     Returns
     -------
     dict
-        Dictionary with keys: ipo_price (float), ipo_date (Timestamp), ipo_quantity (float or NaN)
+        Dictionary with keys: ipo_price (float), ipo_date (Timestamp)
 
     Examples
     --------

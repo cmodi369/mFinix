@@ -116,9 +116,6 @@ class TabStocks:
         self.tab_widgets["stocks_xirr_table"].on_click(self._table_click_cb)
         self.tab_widgets["tools_menu"].on_click(self._open_selected_layout)
 
-        self.event_manager.widgets["submit_button"].on_click(self._initial_layout)
-        self.event_manager.widgets["cancel_button"].on_click(self._initial_layout)
-
     def _open_selected_layout(self, event):
         """Open Selected Layout"""
         layout_mapping_dict = {
