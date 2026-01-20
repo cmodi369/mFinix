@@ -72,6 +72,52 @@ class CorporateEventHandler(ABC):
         """
         pass
 
+    @staticmethod
+    def append_row_to_csv(file_path: Path, new_row: Dict[str, Any]) -> None:
+        """Append a row to a CSV file.
+
+        Creates file and header if it doesn't exist. Appends the new row
+        to the CSV file.
+
+        Parameters
+        ----------
+        file_path : Path
+            Path to the CSV file
+        new_row : dict
+            Dictionary containing row data to append (keys are column names)
+        """
+        file_exists = file_path.exists()
+
+        # if same entry is already present, skip appending and raise error message
+        if file_exists:
+            with open(file_path, mode="r", newline="") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    if all(
+                        str(row[key]) == str(value) for key, value in new_row.items()
+                    ):
+                        log.warning(
+                            "Duplicate entry found in CSV for %s. Skipping append.",
+                            new_row,
+                        )
+                        pn.state.notifications.warning(
+                            "Duplicate entry found in records. Entry not added."
+                        )
+                        return
+
+        with open(file_path, mode="a" if file_exists else "w", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=list(new_row.keys()))
+
+            if not file_exists:
+                writer.writeheader()
+
+            writer.writerow(new_row)
+
+            # add notification
+            msg = f"Data is added for {new_row[col.SYMBOL]}."
+            pn.state.notifications.success(msg)
+            log.info(msg)
+
 
 # ============================================================================
 # IPO Inputs Manager
@@ -148,10 +194,17 @@ class IPOInputsManager(CorporateEventHandler):
             col.TRADE_DATE: self.widgets["transactions_date_select"].value,
             col.QUANTITY: self.widgets["quantity_input"].value,
             col.PRICE: self.widgets["price_input"].value,
+            col.TRANSACTION_AMOUNT: self.widgets["quantity_input"].value
+            * self.widgets["price_input"].value,
         }
 
-        self._append_row_to_csv(Path(const.LOCAL_DATA_PATH / const.IPO_CSV), data)
-        self.transactions_data.loc[len(self.transactions_data)] = data
+        self.append_row_to_csv(Path(const.LOCAL_DATA_PATH / const.IPO_CSV), data)
+        self.transactions_data.loc[len(self.transactions_data)] = data.update(
+            {
+                col.TRADE_TYPE: const.BUY,
+                col.TOTAL_QUANTITY: self.widgets["quantity_input"].value,
+            }
+        )
 
         return data
 
@@ -182,12 +235,12 @@ class IPOInputsManager(CorporateEventHandler):
                 "IPO data fetched and auto-filled for %s: price=%.2f, date=%s",
                 stock_name,
                 ipo_data["ipo_price"],
-                ipo_data["ipo_date"],
+                ipo_data["link_removal_date"],
             )
             pn.state.notifications.success(
                 f"IPO data fetched for {stock_name}: "
                 f"Price Rs.{ipo_data['ipo_price']}, "
-                f"Date {ipo_data['ipo_date'].strftime('%Y-%m-%d')}"
+                f"Date {ipo_data['link_removal_date'].strftime('%Y-%m-%d')}"
             )
             return True
 
@@ -297,38 +350,12 @@ class IPOInputsManager(CorporateEventHandler):
         """
         self.widgets["price_input"].value = float(ipo_data["ipo_price"])
         self.widgets["transactions_date_select"].value = pd.Timestamp(
-            ipo_data["ipo_date"]
+            ipo_data[
+                "link_removal_date"
+            ]  # link removal date is considered as IPO date for XIRR calculation else it returns None
         ).date()
-        self.widgets[
-            "quantity_input"
-        ].value = self.calculate_ipo_quantity_from_transactions(
-            self.widgets["stock_select"].value
+        self.widgets["quantity_input"].value = (
+            self.calculate_ipo_quantity_from_transactions(
+                self.widgets["stock_select"].value
+            )
         )
-
-    # ========================================================================
-    # Private Methods - Data Storage
-    # ========================================================================
-
-    @staticmethod
-    def _append_row_to_csv(file_path: Path, new_row: Dict[str, Any]) -> None:
-        """Append a row to a CSV file.
-
-        Creates file and header if it doesn't exist. Appends the new row
-        to the CSV file.
-
-        Parameters
-        ----------
-        file_path : Path
-            Path to the CSV file
-        new_row : dict
-            Dictionary containing row data to append (keys are column names)
-        """
-        file_exists = file_path.exists()
-
-        with open(file_path, mode="a" if file_exists else "w", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=list(new_row.keys()))
-
-            if not file_exists:
-                writer.writeheader()
-
-            writer.writerow(new_row)

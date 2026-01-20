@@ -15,7 +15,9 @@ from mFinix.util import log
 
 def automatic_update_corporate_actions_data(trade_data: pd.DataFrame):
     # read/initialize required datasets
-    dividend_data, splits_data, last_date = _read_local_corporate_actions_data()
+    dividend_data, splits_data, ipo_data, last_date = (
+        _read_local_corporate_actions_data()
+    )
 
     # TODO: Optimize looping methodology
     for stock_id in trade_data[col.ISIN].unique():
@@ -125,15 +127,24 @@ def automatic_update_corporate_actions_data(trade_data: pd.DataFrame):
 
 def add_corporate_actions_in_tradebook(trade_data: pd.DataFrame):
     # read/initialize required datasets
-    dividend_data, splits_data, last_date = _read_local_corporate_actions_data()
+    dividend_data, splits_data, ipo_data, last_date = (
+        _read_local_corporate_actions_data()
+    )
 
     # add trade type
     dividend_data[col.TRADE_TYPE] = const.DIVIDEND
+    ipo_data[col.TRADE_TYPE] = const.BUY
     splits_data[col.TRADE_TYPE] = const.STOCK_SPLIT
     splits_data[col.TRANSACTION_AMOUNT] = 0
 
     # add splits data and adjust total quantity
     ret_data = pd.concat([trade_data, splits_data])
+    ret_data = ret_data.sort_values(by=[col.TRADE_DATE, col.TRADE_TYPE]).reset_index(
+        drop=True
+    )
+
+    # add ipo data
+    ret_data = pd.concat([ret_data, ipo_data])
     ret_data = ret_data.sort_values(by=[col.TRADE_DATE, col.TRADE_TYPE]).reset_index(
         drop=True
     )
@@ -159,14 +170,18 @@ def _read_local_corporate_actions_data():
         dividend_data[col.TRADE_DATE] = pd.to_datetime(
             dividend_data[col.TRADE_DATE]
         ).dt.date
-
         log.info("Dividends data is pulled for %s entries", len(dividend_data))
+
         splits_data = pd.read_csv(Path(const.LOCAL_DATA_PATH / const.SPLIT_ACTIONS_CSV))
         splits_data[col.TRADE_DATE] = pd.to_datetime(
             splits_data[col.TRADE_DATE]
         ).dt.date
-
         log.info("Stock splits data is pulled for %s entries", len(splits_data))
+
+        ipo_data = pd.read_csv(Path(const.LOCAL_DATA_PATH / const.IPO_CSV))
+        ipo_data[col.TRADE_DATE] = pd.to_datetime(ipo_data[col.TRADE_DATE]).dt.date
+        log.info("IPO data is pulled for %s entries", len(splits_data))
+
         last_date = pd.to_datetime(
             Path(const.LOCAL_DATA_PATH / const.LAST_DATE_TXT).read_text()
         )
@@ -186,6 +201,15 @@ def _read_local_corporate_actions_data():
                 col.TRANSACTION_AMOUNT,
             ]
         )
+        ipo_data = pd.DataFrame(
+            columns=[
+                col.SYMBOL,
+                col.ISIN,
+                col.TRADE_DATE,
+                col.QUANTITY,
+                col.PRICE,
+            ]
+        )
         splits_data = pd.DataFrame(
             columns=[
                 col.SYMBOL,
@@ -197,7 +221,7 @@ def _read_local_corporate_actions_data():
         )
         last_date = const.DEFAULT_LAST_DATE
 
-    return dividend_data, splits_data, last_date
+    return dividend_data, splits_data, ipo_data, last_date
 
 
 # Function to apply mergers

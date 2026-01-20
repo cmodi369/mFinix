@@ -131,11 +131,3 @@ def _get_query_date(year: int) -> date:
     if year == date.today().year:
         return date.today()
     return date(year, 12, 31)
-
-
-if __name__ == "__main__":
-    latest_value = 456800.0
-    ledger_data = dm.read_ledger_data()
-    portfolio_xirr = calculate_portfolio_xirr_from_ledger(ledger_data, latest_value)
-
-    print(portfolio_xirr)

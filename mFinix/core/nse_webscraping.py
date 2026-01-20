@@ -366,9 +366,13 @@ class IPOParser(DataParserInterface):
             # Parse IPO date
             ipo_date = pd.to_datetime(ipo_record["listingDate"])
 
+            # Parse Link Removal Date
+            link_removal_date = pd.to_datetime(ipo_record["linkRemovalDate"])
+
             result_dict = {
                 "ipo_price": ipo_price,
                 "ipo_date": ipo_date,
+                "link_removal_date": link_removal_date,
             }
 
             log.info(

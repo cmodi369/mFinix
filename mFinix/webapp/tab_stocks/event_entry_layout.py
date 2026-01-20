@@ -113,11 +113,6 @@ class EventDataManager:
         pass
 
     def _on_click_submit_cb(self, _):
-        # add notification
-        msg = f"{self._event_selected.split(' ')[1]} data is added for {self.widgets['stock_select'].value}."
-        pn.state.notifications.success(msg)
-        log.info(msg)
-
         # Delegate data processing to appropriate manager
         if self._event_selected == webapp_const.EventOptions.ADD_IPO:
             self._ipo_manager.process_submission()
