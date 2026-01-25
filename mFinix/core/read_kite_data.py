@@ -141,10 +141,12 @@ class _HoldingProcessor:
         header_row = _HoldingProcessor._find_header_row(holdings_df)
         if header_row is not None:
             holdings_df = holdings_df.iloc[header_row:].reset_index(drop=True)
-            holdings_df = holdings_df.rename(columns=holdings_df.iloc[0]).drop(holdings_df.index[0])
+            holdings_df = holdings_df.rename(columns=holdings_df.iloc[0]).drop(
+                holdings_df.index[0]
+            )
 
         # Use the first row (original header) as column names if not already set
-        if header_row is not None and list(holdings_df.columns).count('Unnamed') > 0:
+        if header_row is not None and list(holdings_df.columns).count("Unnamed") > 0:
             # Re-read and set proper headers
             pass
 
@@ -153,7 +155,7 @@ class _HoldingProcessor:
 
         # Add as_on_date column if provided
         if as_on_date is not None:
-            holdings_df['as_on_date'] = pd.to_datetime(as_on_date)
+            holdings_df["as_on_date"] = pd.to_datetime(as_on_date)
 
         return holdings_df
 
@@ -174,8 +176,8 @@ class _HoldingProcessor:
             The index of the header row, or None if not found.
         """
         for idx, row in df.iterrows():
-            row_str = ' '.join(str(v) for v in row if pd.notna(v)).lower()
-            if 'symbol' in row_str and 'isin' in row_str:
+            row_str = " ".join(str(v) for v in row if pd.notna(v)).lower()
+            if "symbol" in row_str and "isin" in row_str:
                 return idx
         return None
 
@@ -196,10 +198,10 @@ class _HoldingProcessor:
             The extracted date string, or None if not found.
         """
         for idx, row in df.iterrows():
-            row_str = ' '.join(str(v) for v in row if pd.notna(v))
-            if 'as on' in row_str.lower():
+            row_str = " ".join(str(v) for v in row if pd.notna(v))
+            if "as on" in row_str.lower():
                 # Try to extract date in format YYYY-MM-DD
-                match = re.search(r'(\d{4}-\d{2}-\d{2})', row_str)
+                match = re.search(r"(\d{4}-\d{2}-\d{2})", row_str)
                 if match:
                     return match.group(1)
         return None
@@ -296,17 +298,20 @@ class KiteDataReader:
             raise FileNotFoundError(f"Holdings file not found at {holdings_file}")
 
         # Read the Excel file with all sheets
-        sheets = pd.read_excel(holdings_file, sheet_name=['Equity', 'Mutual Funds'], header=None)
+        sheets = pd.read_excel(
+            holdings_file, sheet_name=["Equity", "Mutual Funds"], header=None
+        )
 
         # Process Equity sheet
-        equity_df = sheets['Equity']
+        equity_df = sheets["Equity"]
         equity_df = _HoldingProcessor.process(equity_df)
 
         # Process Mutual Funds sheet
-        mf_df = sheets['Mutual Funds']
+        mf_df = sheets["Mutual Funds"]
         mf_df = _HoldingProcessor.process(mf_df)
 
         return equity_df, mf_df
+
 
 # Module-level convenience functions for backward compatibility and ease of use
 _DEFAULT_READER: KiteDataReader = None
