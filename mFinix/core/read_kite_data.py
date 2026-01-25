@@ -153,6 +153,14 @@ class _HoldingProcessor:
         # Remove rows/columns with all NaN values
         holdings_df = holdings_df.dropna(axis=0, how="all").dropna(axis=1, how="all")
 
+        # rename columns to standard names
+        column_mapping = {
+            "Symbol": col.SYMBOL,
+            "ISIN": col.ISIN,
+            "Quantity Available": col.QUANTITY,
+        }
+        holdings_df = holdings_df.rename(columns=column_mapping)
+
         # Add as_on_date column if provided
         if as_on_date is not None:
             holdings_df["as_on_date"] = pd.to_datetime(as_on_date)

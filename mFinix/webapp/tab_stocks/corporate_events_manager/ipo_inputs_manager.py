@@ -32,6 +32,8 @@ class CorporateEventHandler(ABC):
     ----------
     transactions_data : pd.DataFrame
         DataFrame containing existing transaction data with stock symbols and ISINs
+    holdings_data : pd.DataFrame
+        DataFrame containing existing equity holdings data with stock symbols and quantities
     widgets : dict
         Dictionary of UI widgets including common widgets and event-specific widgets
     layout : pn.Column
@@ -41,10 +43,12 @@ class CorporateEventHandler(ABC):
     def __init__(
         self,
         transactions_data: pd.DataFrame,
+        holdings_data: pd.DataFrame,
         widgets: dict,
         layout: pn.Column,
     ) -> None:
         self.transactions_data = transactions_data
+        self.equity_holdings_data = holdings_data
         self.widgets = widgets
         self.layout = layout
 
@@ -135,6 +139,8 @@ class IPOInputsManager(CorporateEventHandler):
     ----------
     transactions_data : pd.DataFrame
         DataFrame containing existing transaction data with stock symbols and ISINs
+    equity_holdings_data : pd.DataFrame
+        DataFrame containing existing equity holdings data with stock symbols and quantities
     widgets : dict
         Dictionary of UI widgets including common widgets shared across events
     layout : pn.Column
@@ -144,10 +150,11 @@ class IPOInputsManager(CorporateEventHandler):
     def __init__(
         self,
         transactions_data: pd.DataFrame,
+        equity_holdings_data: pd.DataFrame,
         widgets: dict,
         layout: pn.Column,
     ) -> None:
-        super().__init__(transactions_data, widgets, layout)
+        super().__init__(transactions_data, equity_holdings_data, widgets, layout)
         self._fetch_ipo_button = pn.widgets.Button(
             name="Fetch IPO Data", button_type="success", width=150
         )
@@ -281,10 +288,8 @@ class IPOInputsManager(CorporateEventHandler):
     # Private Methods - Data Fetching and Transformation
     # ========================================================================
 
-    def calculate_ipo_quantity_from_transactions(
-        self, stock_name: str
-    ) -> Optional[float]:
-        """Calculate IPO quantity from the first transaction record for a stock.
+    def calculate_ipo_quantity_from_holdings(self, stock_name: str) -> Optional[float]:
+        """Calculate IPO quantity from quantity difference with holdings and transactions data.
 
         Parameters
         ----------
@@ -294,35 +299,31 @@ class IPOInputsManager(CorporateEventHandler):
         Returns
         -------
         float or None
-            The IPO quantity (absolute value of first negative transaction) if found,
+            The IPO quantity if found,
             None otherwise
         """
         if not stock_name:
             return None
 
-        # Filter transactions for the selected stock
-        stock_transactions = self.transactions_data[
-            self.transactions_data[col.SYMBOL] == stock_name
-        ].copy()
+        # Calculate latest quantity from holdings data
+        quantity_from_holdings = self.equity_holdings_data.loc[
+            self.equity_holdings_data[col.SYMBOL] == stock_name
+        ][col.QUANTITY].item()
 
-        if stock_transactions.empty:
-            log.info("No transaction records found for stock %s", stock_name)
-            return None
-
-        # Sort by trade date in chronological order to get the first transaction
-        stock_transactions = stock_transactions.sort_values(
-            by=col.TRADE_DATE, ascending=True
+        # Calculate total quantity from transactions data
+        quantity_from_transactions = (
+            self.transactions_data.loc[self.transactions_data[col.SYMBOL] == stock_name]
+            .sort_values(by=col.TRADE_DATE)
+            .iloc[-1][col.TOTAL_QUANTITY]
         )
 
-        # Get the first transaction record
-        first_transaction = stock_transactions.iloc[0]
-        first_quantity = first_transaction[col.QUANTITY]
+        # Calculate difference in quantity to infer IPO quantity
+        ipo_quantity = int(quantity_from_holdings - quantity_from_transactions)
 
         # Check if quantity is negative (indicating IPO allotment)
-        if first_quantity < 0:
-            ipo_quantity = abs(first_quantity)
+        if ipo_quantity != 0:
             log.info(
-                "IPO quantity calculated from transaction data for %s: %.2f",
+                "IPO quantity calculated from transaction data and holdings data for %s: %.2f",
                 stock_name,
                 ipo_quantity,
             )
@@ -330,12 +331,11 @@ class IPOInputsManager(CorporateEventHandler):
 
         # If quantity is zero or positive, no IPO data found in transactions
         log.info(
-            "Transaction data for stock %s does not indicate IPO (first transaction quantity: %s)",
+            "Transaction and holdings data for stock %s does not indicate IPO.",
             stock_name,
-            first_quantity,
         )
         pn.state.notifications.info(
-            f"Transaction data for {stock_name} does not indicate IPO. "
+            f"Transaction and holdings data for {stock_name} does not indicate IPO. "
             "Please fetch IPO data from NSE or enter manually."
         )
         return None
@@ -355,7 +355,7 @@ class IPOInputsManager(CorporateEventHandler):
             ]  # link removal date is considered as IPO date for XIRR calculation else it returns None
         ).date()
         self.widgets["quantity_input"].value = (
-            self.calculate_ipo_quantity_from_transactions(
+            self.calculate_ipo_quantity_from_holdings(
                 self.widgets["stock_select"].value
             )
         )

@@ -1,4 +1,5 @@
 from mFinix.core.data_processing import prepare_transactions_data
+from mFinix.core.read_kite_data import read_holding_data
 from mFinix.core.xirr_calculation import calculate_stock_xirr_from_transactions
 
 
@@ -21,6 +22,7 @@ def prepare_stocks_tab_data():
     stocks_xirr_data_dict = calculate_stock_xirr_from_transactions(
         ret_data_dict["transactions_data"]
     )
+    ret_data_dict["equity_holdings"], ret_data_dict["mf_holdings"] = read_holding_data()
     ret_data_dict.update(stocks_xirr_data_dict)
 
     return ret_data_dict

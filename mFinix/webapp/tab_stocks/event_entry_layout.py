@@ -20,6 +20,7 @@ class EventDataManager:
     def __init__(self, data_dict: dict, widgets: dict):
         self.data_dict = data_dict
         self.transactions_data = self.data_dict["transactions_data"]
+        self.equity_holdings_data = self.data_dict["equity_holdings"]
         self.widgets = widgets["event_wids"] = {
             "submit_button": pn.widgets.Button(name="Submit", button_type="primary"),
             "cancel_button": pn.widgets.Button(name="Cancel", button_type="danger"),
@@ -39,6 +40,7 @@ class EventDataManager:
     def initialize(self):
         self._ipo_manager = IPOInputsManager(
             self.transactions_data,
+            self.equity_holdings_data,
             self.widgets,
             self._layout,
         )
