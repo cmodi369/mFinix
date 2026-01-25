@@ -1,72 +1,57 @@
-from datetime import date, datetime, timedelta
+"""
+Data management utilities for stock price fetching and general data operations.
+
+This module provides utilities for fetching historical stock prices and
+data transformation operations. For reading trading data from the Kite
+platform, use the read_kite_data module.
+
+"""
+
+from datetime import date, timedelta
 from typing import Iterator, List, Union
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
 
-import mFinix.constants.columns as col
-
-# module specific constants
-import mFinix.constants.constants as const
-
-
-def read_ledger_data():
-    # Get all files starting with ledger in the directory
-    files = [
-        file
-        for file in const.DOCS_PATH.glob(f"{const.LEDGER_ID_ZERODHA}*.csv")
-        if file.is_file()
-    ]
-
-    # Find the latest file based on modification time
-    if not files:
-        raise FileNotFoundError("No files found in the directory starting with ledger.")
-
-    latest_file = max(files, key=lambda f: f.stat().st_mtime)
-
-    ledger_data = pd.read_csv(latest_file).dropna()
-    ledger_data[col.POSTING_DATE] = pd.to_datetime(ledger_data[col.POSTING_DATE])
-
-    return ledger_data
-
-
-def read_tradebook_data():
-    ret_data = pd.DataFrame()
-    for file in const.DOCS_PATH.glob(f"{const.TRADEBOOK_ID_ZERODHA}*"):
-        ret_data = pd.concat([ret_data, pd.read_csv(file)])
-
-    # remove duplicates
-    ret_data = ret_data.drop_duplicates(
-        subset=["trade_id", "order_id", "order_execution_time"]
-    )
-
-    # format datetime column
-    ret_data[col.TRADE_DATE] = pd.to_datetime(ret_data[col.TRADE_DATE]).dt.date
-
-    # sort data based on trading dates
-    ret_data = ret_data.sort_values(by=[col.TRADE_DATE, col.TRADE_TYPE]).reset_index(
-        drop=True
-    )
-
-    # set negative price for sell transactions
-    ret_data.loc[ret_data[col.TRADE_TYPE].eq(const.SELL), col.QUANTITY] = (
-        ret_data[col.QUANTITY] * -1
-    )
-    ret_data[col.TRANSACTION_AMOUNT] = ret_data[col.PRICE] * ret_data[col.QUANTITY]
-
-    # calculate total quantity
-    ret_data[col.TOTAL_QUANTITY] = ret_data.groupby(col.ISIN)[col.QUANTITY].cumsum()
-
-    ret_data[col.SYMBOL] = ret_data[col.SYMBOL].str.split("-").str[0]
-
-    return ret_data
-
 
 def fetch_stocks_price(
     stocks: Union[str, Iterator], on_date: date = date.today(), offset_days: int = 4
 ) -> pd.Series:
-    stocks = coerce_to_list(stocks)
+    """Fetch the latest stock price for given ticker symbols.
+
+    Retrieves the closing price for one or more stock tickers as of a specified
+    date. Downloads historical price data from yfinance covering the date range
+    from (on_date - offset_days) to on_date.
+
+    Parameters
+    ----------
+    stocks : Union[str, Iterator]
+        A single ticker symbol (str) or an iterable of ticker symbols.
+    on_date : date, optional
+        The target date for which to fetch prices. Defaults to today's date.
+    offset_days : int, optional
+        Number of days to offset backwards from on_date for the start of the
+        download range. Defaults to 4 days to account for weekends/holidays.
+
+    Returns
+    -------
+    pd.Series
+        A pandas Series with ticker symbols as index and their latest closing
+        prices as values. Returns np.nan for tickers with no data.
+
+    Examples
+    --------
+    >>> fetch_stocks_price('RELIANCE.NS')  # doctest: +SKIP
+    RELIANCE.NS    2500.50
+    Name: latest_close, dtype: float64
+
+    >>> fetch_stocks_price(['TCS.NS', 'INFY.NS'])  # doctest: +SKIP
+    TCS.NS     3500.25
+    INFY.NS    1800.75
+    Name: latest_close, dtype: float64
+    """
+    stocks = _coerce_to_list(stocks)
 
     start = on_date - timedelta(offset_days)
 
@@ -78,6 +63,22 @@ def fetch_stocks_price(
 def _download_tickers_price_from_yfinance(
     tickers: List[str], start_date: date, end_date: date
 ) -> pd.Series:
+    """Download ticker prices from yfinance and extract latest closing prices.
+
+    Parameters
+    ----------
+    tickers : List[str]
+        List of ticker symbols to download.
+    start_date : date
+        Start date for the price download range.
+    end_date : date
+        End date for the price download range.
+
+    Returns
+    -------
+    pd.Series
+        Series with ticker symbols as index and their latest closing prices.
+    """
     df = yf.download(
         tickers,
         start=start_date,
@@ -100,7 +101,19 @@ def _download_tickers_price_from_yfinance(
     return ret_data
 
 
-def coerce_to_list(inputs) -> list:
+def _coerce_to_list(inputs) -> list:
+    """Convert input to a list format.
+
+    Parameters
+    ----------
+    inputs : Union[str, Iterable]
+        A string or iterable input.
+
+    Returns
+    -------
+    list
+        The input as a list.
+    """
     if isinstance(inputs, str):
         return [inputs]
     return list(inputs)

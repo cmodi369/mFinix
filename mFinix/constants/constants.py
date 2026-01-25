@@ -6,6 +6,7 @@ DOCS_PATH: Path = Path(Path(__file__).parents[1], "docs")
 # files identifier for zerodha file names
 LEDGER_ID_ZERODHA: str = "ledger"
 TRADEBOOK_ID_ZERODHA: str = "tradebook"
+HOLDING_EXCEL_ZERODHA: str = "holdings-RY9229.xlsx"
 
 # NSE web scrapping specific constants
 USE_WEBSCRAPPING: bool = True
