@@ -5,11 +5,11 @@ from typing import List
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 import mFinix.constants.columns as col
 import mFinix.constants.constants as const
 from mFinix.core.nse_webscraping import extract_dividend_data
+from mFinix.core.yfinance_query import extract_corporate_actions
 from mFinix.util import log
 
 
@@ -24,29 +24,22 @@ def automatic_update_corporate_actions_data(trade_data: pd.DataFrame):
         log.info("Querying corporate actions for %s", stock_id)
 
         stock_trade_data = trade_data[trade_data[col.ISIN].eq(stock_id)]
-        stock = yf.Ticker(stock_id)
-        actions_data = stock.actions
-        stock_name = stock.ticker.split(".")[0]
+        actions_data_obj = extract_corporate_actions(stock_id)
+        actions_data = actions_data_obj.actions
+        stock_name = actions_data_obj.get_ticker_name()
 
-        if not stock.ticker:
-            log.info(
-                "Information is not available for %s, Check for merger/name change",
-                stock_id,
-            )
+        if actions_data.empty:
+            log.info("Corporate actions are not available for %s", stock_name)
             if const.USE_WEBSCRAPPING:
                 stock_name = trade_data[trade_data[col.ISIN] == stock_id][
                     col.SYMBOL
                 ].unique()[0]
                 actions_data = extract_dividend_data(stock_name)
-
-        else:
-            actions_data.index = actions_data.index.tz_localize(None)
-
-        if actions_data.empty:
-            log.info(
-                "Corporate actions are not available for %s", stock.ticker.split(".")[0]
-            )
-            continue
+                if actions_data.empty:
+                    log.info("Corporate actions are not available for %s", stock_name)
+                    continue
+            else:
+                continue
 
         log.info("Corporate actions are retrieved for %s", stock_name)
 
