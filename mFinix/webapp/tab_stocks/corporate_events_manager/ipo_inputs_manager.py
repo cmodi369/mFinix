@@ -305,10 +305,14 @@ class IPOInputsManager(CorporateEventHandler):
         if not stock_name:
             return None
 
-        # Calculate latest quantity from holdings data
-        quantity_from_holdings = self.equity_holdings_data.loc[
-            self.equity_holdings_data[col.SYMBOL] == stock_name
-        ][col.QUANTITY].item()
+        if stock_name in self.equity_holdings_data[col.SYMBOL]:
+            # Calculate latest quantity from holdings data
+            quantity_from_holdings = self.equity_holdings_data.loc[
+                self.equity_holdings_data[col.SYMBOL] == stock_name
+            ][col.QUANTITY].item()
+
+        else:
+            quantity_from_holdings = 0
 
         # Calculate total quantity from transactions data
         quantity_from_transactions = (
