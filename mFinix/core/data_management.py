@@ -16,7 +16,10 @@ import yfinance as yf
 
 
 def fetch_stocks_price(
-    stocks: Union[str, Iterator], on_date: date = date.today(), offset_days: int = 4
+    stocks: Union[str, Iterator],
+    on_date: date = date.today(),
+    start_offset_days: int = 4,
+    end_offset_days: int = 1,
 ) -> pd.Series:
     """Fetch the latest stock price for given ticker symbols.
 
@@ -30,9 +33,12 @@ def fetch_stocks_price(
         A single ticker symbol (str) or an iterable of ticker symbols.
     on_date : date, optional
         The target date for which to fetch prices. Defaults to today's date.
-    offset_days : int, optional
+    start_offset_days : int, optional
         Number of days to offset backwards from on_date for the start of the
         download range. Defaults to 4 days to account for weekends/holidays.
+    end_offset_days : int, optional
+        Number of days to offset forwards from on_date for the end of the
+        download range. Defaults to 1.
 
     Returns
     -------
@@ -53,9 +59,11 @@ def fetch_stocks_price(
     """
     stocks = _coerce_to_list(stocks)
 
-    start = on_date - timedelta(offset_days)
+    start = on_date - timedelta(start_offset_days)
 
-    data = _download_tickers_price_from_yfinance(stocks, start, on_date)
+    end = on_date + timedelta(end_offset_days)
+
+    data = _download_tickers_price_from_yfinance(stocks, start, end)
 
     return data
 
