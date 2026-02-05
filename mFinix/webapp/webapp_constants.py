@@ -1,3 +1,6 @@
+import mFinix.constants.columns as col
+
+
 class EventOptions:
     ADD_TRANSACTION: str = "Add Transaction"
     ADD_SPLIT: str = "Add Split"
@@ -37,11 +40,11 @@ EVENTS_OPTIONS = EventOptions.all_options()
 STOCK_MENU_OPTIONS = StockMenuOptions.all_options()
 
 COL_NAME_MAPPING: dict[str, str] = {
-    "symbol": "Stock Name",
-    "trade_date": "Trade Date",
-    "trade_type": "Trade Type",
-    "quantity": "Quantity",
-    "price": "Price",
-    "transaction_amount": "Transaction Amount",
-    "balanced_quantity": "Total Quantity",
+    col.SYMBOL: "Stock Name",
+    col.TRADE_DATE: "Trade Date",
+    col.TRADE_TYPE: "Trade Type",
+    col.QUANTITY: "Quantity",
+    col.PRICE: "Price",
+    col.TRANSACTION_AMOUNT: "Transaction Amount",
+    col.TOTAL_QUANTITY: "Total Quantity",
 }

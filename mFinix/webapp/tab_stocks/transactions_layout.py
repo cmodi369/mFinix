@@ -15,13 +15,13 @@ class TransactionsManager:
         self.widgets = widgets["transactions_wids"] = {}
 
         self._columns = [
-            "symbol",
-            "trade_date",
-            "trade_type",
-            "quantity",
-            "price",
-            "transaction_amount",
-            "balanced_quantity",
+            col.SYMBOL,
+            col.TRADE_DATE,
+            col.TRADE_TYPE,
+            col.QUANTITY,
+            col.PRICE,
+            col.TRANSACTION_AMOUNT,
+            col.TOTAL_QUANTITY,
         ]
 
     @run_once

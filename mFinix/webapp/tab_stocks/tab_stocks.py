@@ -78,8 +78,13 @@ class TabStocks:
         col_name_mapping = {
             col.ISIN: "Symbol",
             col.SYMBOL: "Stock Name",
-            col.CURRENT_PRICE: "Price",
             col.TOTAL_QUANTITY: "Quantity",
+            col.AVG_BUY_PRICE: "Buy Avg.",
+            col.BUY_VALUE: "Buy Value",
+            col.CURRENT_PRICE: "LTP",
+            col.PRESENT_VALUE: "Present Value",
+            col.PNL: "P&L",
+            col.PNL_PERCENTAGE: "P&L %",
             col.XIRR: "XIRR",
         }
         widgets["stocks_xirr_table"] = pn.widgets.Tabulator(
@@ -89,8 +94,13 @@ class TabStocks:
             pagination="local",
             formatters={
                 col.XIRR: NumberFormatter(format="0.00%"),
+                col.PNL_PERCENTAGE: NumberFormatter(format="0.00%"),
                 col.QUANTITY: NumberFormatter(format="0,0"),
-                col.CURRENT_PRICE: NumberFormatter(format="0,0.00"),
+                col.CURRENT_PRICE: NumberFormatter(format="0,0.0"),
+                col.AVG_BUY_PRICE: NumberFormatter(format="0,0.0"),
+                col.BUY_VALUE: NumberFormatter(format="0,0.0"),
+                col.PRESENT_VALUE: NumberFormatter(format="0,0.0"),
+                col.PNL: NumberFormatter(format="0,0.0"),
             },
             buttons={
                 "open": "<i class='fa fa-list-alt'></i>",

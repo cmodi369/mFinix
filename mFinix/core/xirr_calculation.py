@@ -14,7 +14,7 @@ from mFinix.core.corporate_actions import (
     add_corporate_actions_in_tradebook,
     automatic_update_corporate_actions_data,
 )
-from mFinix.core.data_management import fetch_stocks_price
+from mFinix.core.yfinance_query import fetch_stocks_price
 
 
 def calculate_portfolio_xirr_from_ledger(
@@ -106,11 +106,18 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
     )
 
     # calculate stocks XIRR
-    ret_data_dict["stocks_xirr_data"] = (
+    stocks_xirr_df = (
         portfolio_stocks.merge(stocks_xirr_df, how="inner", on=[col.ISIN, col.SYMBOL])
         .sort_values(by=col.SYMBOL)
         .reset_index(drop=True)
     )
+
+    # update stocks_xirr_df with average buy price, P&L and P&L % for each stock
+    dm.calculate_and_add_avg_buy_for_all_stocks(transactions_data, stocks_xirr_df)
+    dm.calculate_and_add_current_total_value_for_all_stocks(stocks_xirr_df)
+    dm.calculate_and_add_pnl_for_all_stocks(stocks_xirr_df)
+
+    ret_data_dict["stocks_xirr_data"] = stocks_xirr_df
 
     return ret_data_dict
 
