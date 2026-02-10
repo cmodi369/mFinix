@@ -8,7 +8,6 @@ import mFinix.constants.columns as col
 import mFinix.constants.constants as const
 import mFinix.constants.panel_constants as pn_const
 import mFinix.webapp.webapp_constants as webapp_const
-from mFinix.core.xirr_calculation import calculate_stock_xirr_from_transactions
 from mFinix.util import log
 from mFinix.webapp.tab_stocks.event_entry_layout import EventDataManager
 from mFinix.webapp.tab_stocks.transactions_layout import TransactionsManager

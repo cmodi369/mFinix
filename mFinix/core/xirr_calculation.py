@@ -42,6 +42,49 @@ def calculate_portfolio_xirr_from_ledger(
     )
 
 
+def calculate_portfolio_xirr(
+    ledger_df: pd.DataFrame, stocks_xirr_df: pd.DataFrame
+) -> float:
+    """Calculate overall portfolio XIRR using ledger cash flows and current holdings.
+
+    Parameters
+    ----------
+    ledger_df : pd.DataFrame
+        Processed ledger data with posting_date, credit, debit, voucher_type columns.
+    stocks_xirr_df : pd.DataFrame
+        Per-stock XIRR dataframe containing TOTAL_QUANTITY and CURRENT_PRICE columns.
+
+    Returns
+    -------
+    float
+        Portfolio XIRR as a percentage.
+    """
+    latest_portfolio_value = (
+        stocks_xirr_df[col.TOTAL_QUANTITY] * stocks_xirr_df[col.CURRENT_PRICE]
+    ).sum()
+    return calculate_portfolio_xirr_from_ledger(ledger_df, latest_portfolio_value)
+
+
+def calculate_portfolio_xirr_from_transactions(
+    transactions_data: pd.DataFrame, portfolio_stocks: pd.DataFrame
+) -> float:
+    """
+    Calculate portfolio XIRR from zerodha tradebook transactions.
+
+    Combines all buy/sell transaction amounts with current portfolio value
+    to compute the overall portfolio XIRR.
+    """
+    full_xirr_data = pd.concat([transactions_data, portfolio_stocks])
+
+    return (
+        xirr(
+            full_xirr_data[col.TRADE_DATE].tolist(),
+            full_xirr_data[col.TRANSACTION_AMOUNT].tolist(),
+        )
+        * 100
+    )
+
+
 def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> dict:
     """
     Calculate XIRR from zerodha tradebook
@@ -94,15 +137,6 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
             )
         )
         .rename(columns={None: col.XIRR})
-    )
-
-    # calculate portfolio XIRR
-    ret_data_dict["portfolio_xirr"] = (
-        xirr(
-            full_xirr_data[col.TRADE_DATE].tolist(),
-            full_xirr_data[col.TRANSACTION_AMOUNT].tolist(),
-        )
-        * 100
     )
 
     # calculate stocks XIRR
