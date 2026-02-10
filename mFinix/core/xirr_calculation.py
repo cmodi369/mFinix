@@ -42,27 +42,22 @@ def calculate_portfolio_xirr_from_ledger(
     )
 
 
-def calculate_portfolio_xirr(
-    ledger_df: pd.DataFrame, stocks_xirr_df: pd.DataFrame
-) -> float:
-    """Calculate overall portfolio XIRR using ledger cash flows and current holdings.
+def calculate_portfolio_value(stocks_xirr_df: pd.DataFrame) -> float:
+    """Calculate total current value of the portfolio.
 
     Parameters
     ----------
-    ledger_df : pd.DataFrame
-        Processed ledger data with posting_date, credit, debit, voucher_type columns.
     stocks_xirr_df : pd.DataFrame
         Per-stock XIRR dataframe containing TOTAL_QUANTITY and CURRENT_PRICE columns.
 
     Returns
     -------
     float
-        Portfolio XIRR as a percentage.
+        Total portfolio value.
     """
-    latest_portfolio_value = (
+    return (
         stocks_xirr_df[col.TOTAL_QUANTITY] * stocks_xirr_df[col.CURRENT_PRICE]
     ).sum()
-    return calculate_portfolio_xirr_from_ledger(ledger_df, latest_portfolio_value)
 
 
 def calculate_portfolio_xirr_from_transactions(

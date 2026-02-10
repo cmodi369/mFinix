@@ -74,6 +74,20 @@ class TabStocks:
             format="{value:.2f}%",
         )
 
+        portfolio_value = self.tab_data["portfolio_value"]
+        if portfolio_value < 100000:
+            display_value = portfolio_value / 1000
+            format_str = "₹ {value:.2f} K"
+        else:
+            display_value = portfolio_value / 100000
+            format_str = "₹ {value:.2f} L"
+
+        widgets["portfolio_value_text"] = pn.indicators.Number(
+            name="Total Value",
+            value=display_value,
+            format=format_str,
+        )
+
         col_name_mapping = {
             col.ISIN: "Symbol",
             col.SYMBOL: "Stock Name",
@@ -164,6 +178,9 @@ class TabStocks:
 
         self.layout.objects = [
             self._menu_layout,
-            self.tab_widgets["portfolio_xirr_text"],
+            pn.Row(
+                self.tab_widgets["portfolio_xirr_text"],
+                self.tab_widgets["portfolio_value_text"],
+            ),
             pn.Row(self.tab_widgets["stocks_xirr_table"]),
         ]

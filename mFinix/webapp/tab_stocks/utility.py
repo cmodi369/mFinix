@@ -2,7 +2,8 @@ import mFinix.constants.columns as col
 from mFinix.core.data_processing import prepare_transactions_data
 from mFinix.core.read_kite_data import read_holding_data, read_ledger_data
 from mFinix.core.xirr_calculation import (
-    calculate_portfolio_xirr,
+    calculate_portfolio_value,
+    calculate_portfolio_xirr_from_ledger,
     calculate_stock_xirr_from_transactions,
 )
 
@@ -44,14 +45,14 @@ def prepare_stocks_tab_data() -> dict:
 
     # compute portfolio XIRR from ledger cash flows
     ledger_df = read_ledger_data()
-    portfolio_xirr = calculate_portfolio_xirr(
-        ledger_df, stocks_data["stocks_xirr_data"]
-    )
+    portfolio_value = calculate_portfolio_value(stocks_data["stocks_xirr_data"])
+    portfolio_xirr = calculate_portfolio_xirr_from_ledger(ledger_df, portfolio_value)
 
     return {
         "transactions_data": transactions_data,
         "equity_holdings": equity_holdings,
         "mf_holdings": mf_holdings,
         "portfolio_xirr": portfolio_xirr,
+        "portfolio_value": portfolio_value,
         **stocks_data,
     }
