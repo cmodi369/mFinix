@@ -12,6 +12,7 @@ from mFinix.util import log
 from mFinix.webapp.tab_stocks.event_entry_layout import EventDataManager
 from mFinix.webapp.tab_stocks.transactions_layout import TransactionsManager
 from mFinix.webapp.tab_stocks.utility import prepare_stocks_tab_data
+from mFinix.webapp.webapp_constants import UIStyles
 
 
 class TabStocks:
@@ -72,6 +73,16 @@ class TabStocks:
             name="XIRR",
             value=self.tab_data["portfolio_xirr"],
             format="{value:.2f}%",
+            font_size=UIStyles.INDICATOR_VALUE_SIZE,
+            title_size=UIStyles.INDICATOR_TITLE_SIZE,
+            colors=[(0, UIStyles.NEGATIVE_COLOR), (100, UIStyles.POSITIVE_COLOR)],
+            styles={
+                "background-color": UIStyles.INDICATOR_BG_COLOR,
+                "border-radius": "10px",
+                "padding": "15px",
+                "box-shadow": "2px 2px 5px rgba(0,0,0,0.1)",
+                "margin": "10px",
+            },
         )
 
         portfolio_value = self.tab_data["portfolio_value"]
@@ -86,6 +97,15 @@ class TabStocks:
             name="Total Value",
             value=display_value,
             format=format_str,
+            font_size=UIStyles.INDICATOR_VALUE_SIZE,
+            title_size=UIStyles.INDICATOR_TITLE_SIZE,
+            styles={
+                "background-color": UIStyles.INDICATOR_BG_COLOR,
+                "border-radius": "10px",
+                "padding": "15px",
+                "box-shadow": "2px 2px 5px rgba(0,0,0,0.1)",
+                "margin": "10px",
+            },
         )
 
         col_name_mapping = {
@@ -109,11 +129,11 @@ class TabStocks:
                 col.XIRR: NumberFormatter(format="0.00%"),
                 col.PNL_PERCENTAGE: NumberFormatter(format="0.00%"),
                 col.QUANTITY: NumberFormatter(format="0,0"),
-                col.CURRENT_PRICE: NumberFormatter(format="0,0.0"),
-                col.AVG_BUY_PRICE: NumberFormatter(format="0,0.0"),
-                col.BUY_VALUE: NumberFormatter(format="0,0.0"),
-                col.PRESENT_VALUE: NumberFormatter(format="0,0.0"),
-                col.PNL: NumberFormatter(format="0,0.0"),
+                col.CURRENT_PRICE: NumberFormatter(format="0,0.00"),
+                col.AVG_BUY_PRICE: NumberFormatter(format="0,0.00"),
+                col.BUY_VALUE: NumberFormatter(format="0,0.00"),
+                col.PRESENT_VALUE: NumberFormatter(format="0,0.00"),
+                col.PNL: NumberFormatter(format="0,0.00"),
             },
             buttons={
                 "open": "<i class='fa fa-list-alt'></i>",
@@ -121,14 +141,35 @@ class TabStocks:
             },
             titles=col_name_mapping,
             disabled=True,
+            theme=UIStyles.TABLE_THEME,
+            configuration={
+                "columnHeaderVertAlign": "middle",
+            },
+            text_align={
+                col.TOTAL_QUANTITY: "right",
+                col.AVG_BUY_PRICE: "right",
+                col.BUY_VALUE: "right",
+                col.CURRENT_PRICE: "right",
+                col.PRESENT_VALUE: "right",
+                col.PNL: "right",
+                col.PNL_PERCENTAGE: "right",
+                col.XIRR: "right",
+            },
+            row_height=UIStyles.TABLE_ROW_HEIGHT,
+            show_index=False,
+            sizing_mode="stretch_width",
         )
 
         # add styles
         widgets["stocks_xirr_table"].style.apply(
             self._apply_table_row_color,
-            props="color:white;background-color:red",
+            props="color:white;background-color:#e74c3c",
             axis=1,
             subset=[col.TOTAL_QUANTITY],
+        )
+        widgets["stocks_xirr_table"].style.apply(
+            self._apply_pnl_color,
+            subset=[col.PNL, col.PNL_PERCENTAGE, col.XIRR],
         )
 
         return widgets
@@ -153,6 +194,19 @@ class TabStocks:
     def _apply_table_row_color(val, props=""):
         """Function to highlight rows with negative values in the 'quantity' column"""
         return np.where(val < 0, props, "")
+
+    @staticmethod
+    def _apply_pnl_color(val):
+        """Color-code P&L, P&L % and XIRR values"""
+        return np.where(
+            val > 0,
+            f"color: {UIStyles.POSITIVE_COLOR}; font-weight: bold",
+            np.where(
+                val < 0,
+                f"color: {UIStyles.NEGATIVE_COLOR}; font-weight: bold",
+                f"color: {UIStyles.NEUTRAL_COLOR}",
+            ),
+        )
 
     def _open_transactions_window(self, selected_isin: Optional[str] = None):
         self.transactions_manager.initialize()
@@ -181,6 +235,8 @@ class TabStocks:
             pn.Row(
                 self.tab_widgets["portfolio_xirr_text"],
                 self.tab_widgets["portfolio_value_text"],
+                sizing_mode="stretch_width",
+                styles={"justify-content": "center", "gap": "20px"},
             ),
             pn.Row(self.tab_widgets["stocks_xirr_table"]),
         ]

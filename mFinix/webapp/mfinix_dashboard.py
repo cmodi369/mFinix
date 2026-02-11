@@ -7,6 +7,7 @@ from mFinix.webapp.sidebar_layout import SideBar
 from mFinix.webapp.tab_mutual_funds import TabMutualFunds
 from mFinix.webapp.tab_portfolio_summary import TabPortfolioSummary
 from mFinix.webapp.tab_stocks import TabStocks
+from mFinix.webapp.webapp_constants import UIStyles
 
 
 class Mfinix:
@@ -17,6 +18,7 @@ class Mfinix:
             css_files=[
                 "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
             ],
+            raw_css=[UIStyles.CUSTOM_CSS],
         )
 
         log.info("Instantiate mFinix.")
@@ -33,11 +35,13 @@ class Mfinix:
         ]
 
         self.dashboard = pn.template.FastListTemplate(
-            title="Multi Asset Finance Explorer",
-            header_background="black",
+            title="mFinix: Multi Asset Finance Explorer",
+            header_background="#3498db",  # Peter River Blue
+            accent_base_color="#3498db",
             site="mFinix",
-            sidebar_width=250,  ## Default is 330
+            sidebar_width=250,
             busy_indicator=None,
+            main_max_width="95%",
         )
 
         self._create_layout()

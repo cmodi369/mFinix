@@ -48,3 +48,46 @@ COL_NAME_MAPPING: dict[str, str] = {
     col.TRANSACTION_AMOUNT: "Transaction Amount",
     col.TOTAL_QUANTITY: "Total Quantity",
 }
+
+
+class UIStyles:
+    # Color constants
+    POSITIVE_COLOR = "#2ecc71"  # Emerald Green
+    NEGATIVE_COLOR = "#e74c3c"  # Cinnabar Red
+    NEUTRAL_COLOR = "#95a5a6"  # Asbestos Gray
+    INDICATOR_BG_COLOR = "#f8f9fa"  # Light background for indicators
+    HEADER_COLOR = "#2c3e50"  # Midnight Blue
+    ACCENT_COLOR = "#3498db"  # Peter River Blue
+
+    # Table styles
+    TABLE_THEME = "fast"
+    TABLE_HEADER_BG = "#f2f2f2"
+    TABLE_ROW_HEIGHT = 35
+
+    # Text styles
+    INDICATOR_TITLE_SIZE = "14pt"
+    INDICATOR_VALUE_SIZE = "24pt"
+
+    # Custom CSS
+    CUSTOM_CSS = """
+    .tabulator-header {
+        background-color: #f8f9fa !important;
+        font-weight: bold !important;
+        color: #2c3e50 !important;
+    }
+    .tabulator-row-odd {
+        background-color: #ffffff !important;
+    }
+    .tabulator-row-even {
+        background-color: #fdfdfd !important;
+    }
+    .tabulator-row:hover {
+        background-color: #eef2f7 !important;
+    }
+    .pn-indicator-card {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    """
