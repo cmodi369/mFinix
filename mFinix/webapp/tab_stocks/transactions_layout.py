@@ -42,7 +42,20 @@ class TransactionsManager:
 
     @property
     def layout(self):
-        return ["## Transactions", self.widgets["transactions_table"]]
+        return [
+            pn.Column(
+                pn.pane.Markdown(
+                    "### Transactions",
+                    styles={
+                        "font-size": "1.2rem",
+                        "font-weight": "600",
+                        "color": "#2c3e50",
+                    },
+                ),
+                self.widgets["transactions_table"],
+                styles=webapp_const.SidebarStyles.CARD_STYLE,
+            )
+        ]
 
     def _add_callbacks(self):
         pass

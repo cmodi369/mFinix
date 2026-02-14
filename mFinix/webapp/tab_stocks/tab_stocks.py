@@ -230,13 +230,45 @@ class TabStocks:
     def _initial_layout(self):
         """Initialize tab layout"""
 
-        self.layout.objects = [
-            self._menu_layout,
+        # Portfolio Summary Card
+        portfolio_summary_card = pn.Column(
+            pn.pane.Markdown(
+                "### Portfolio Summary",
+                styles={
+                    "font-size": "1.2rem",
+                    "font-weight": "600",
+                    "color": "#2c3e50",
+                },
+            ),
             pn.Row(
                 self.tab_widgets["portfolio_xirr_text"],
                 self.tab_widgets["portfolio_value_text"],
                 sizing_mode="stretch_width",
-                styles={"justify-content": "center", "gap": "20px"},
+                styles={"justify-content": "space-around", "gap": "20px"},
             ),
-            pn.Row(self.tab_widgets["stocks_xirr_table"]),
+            styles=webapp_const.SidebarStyles.CARD_STYLE,
+        )
+
+        # Holdings Card
+        holdings_card = pn.Column(
+            pn.pane.Markdown(
+                "### Holdings",
+                styles={
+                    "font-size": "1.2rem",
+                    "font-weight": "600",
+                    "color": "#2c3e50",
+                },
+            ),
+            self.tab_widgets["stocks_xirr_table"],
+            styles=webapp_const.SidebarStyles.CARD_STYLE,
+        )
+
+        self.layout.objects = [
+            self._menu_layout,
+            pn.Column(
+                portfolio_summary_card,
+                holdings_card,
+                sizing_mode="stretch_width",
+                styles={"gap": "20px", "padding": "20px"},
+            ),
         ]

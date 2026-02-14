@@ -61,9 +61,20 @@ class EventDataManager:
     @property
     def layout(self):
         return [
-            pn.Row(self.widgets["stock_select"], self.widgets["isin_input"]),
-            self.widgets["events_menu"],
-            self._layout,
+            pn.Column(
+                pn.pane.Markdown(
+                    "### Add Event",
+                    styles={
+                        "font-size": "1.2rem",
+                        "font-weight": "600",
+                        "color": "#2c3e50",
+                    },
+                ),
+                pn.Row(self.widgets["stock_select"], self.widgets["isin_input"]),
+                self.widgets["events_menu"],
+                self._layout,
+                styles=webapp_const.SidebarStyles.CARD_STYLE,
+            )
         ]
 
     def _initialize_common_widgets(self):

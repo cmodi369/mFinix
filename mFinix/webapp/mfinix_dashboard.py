@@ -7,7 +7,7 @@ from mFinix.webapp.sidebar_layout import SideBar
 from mFinix.webapp.tab_mutual_funds import TabMutualFunds
 from mFinix.webapp.tab_portfolio_summary import TabPortfolioSummary
 from mFinix.webapp.tab_stocks import TabStocks
-from mFinix.webapp.webapp_constants import UIStyles
+from mFinix.webapp.webapp_constants import SidebarStyles, UIStyles
 
 
 class Mfinix:
@@ -18,7 +18,7 @@ class Mfinix:
             css_files=[
                 "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
             ],
-            raw_css=[UIStyles.CUSTOM_CSS],
+            raw_css=[UIStyles.CUSTOM_CSS, SidebarStyles.CUSTOM_CSS],
         )
 
         log.info("Instantiate mFinix.")
