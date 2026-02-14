@@ -491,51 +491,16 @@ class YFinancePriceExtractor:
 # ============================================================================
 
 
-def fetch_stocks_price(
+def _fetch_raw_stocks_price(
     stocks: Union[str, List[str]],
     on_date: date = None,
     start_offset_days: int = 4,
     end_offset_days: int = 1,
     client: Optional[YFinanceClientInterface] = None,
 ) -> pd.Series:
-    """Fetch the latest stock price for given ticker symbols.
+    """Fetch raw stock prices from yfinance without fallback logic.
 
-    Retrieves the closing price for one or more stock tickers as of a specified
-    date. Downloads historical price data from yfinance covering the date range
-    from (on_date - start_offset_days) to (on_date + end_offset_days).
-
-    Parameters
-    ----------
-    stocks : Union[str, List[str]]
-        A single ticker symbol (str) or a list of ticker symbols.
-    on_date : date, optional
-        The target date for which to fetch prices. Defaults to today's date.
-    start_offset_days : int, optional
-        Number of days to offset backwards from on_date for the start of the
-        download range. Defaults to 4 days to account for weekends/holidays.
-    end_offset_days : int, optional
-        Number of days to offset forwards from on_date for the end of the
-        download range. Defaults to 1.
-    client : Optional[YFinanceClientInterface]
-        yfinance client to use. If None, creates new client.
-        If provided, caller is responsible for lifecycle management.
-
-    Returns
-    -------
-    pd.Series
-        A pandas Series with ticker symbols as index and their latest closing
-        prices as values. Returns np.nan for tickers with no data.
-
-    Examples
-    --------
-    >>> fetch_stocks_price('RELIANCE.NS')
-    RELIANCE.NS    2500.50
-    Name: latest_close, dtype: float64
-
-    >>> fetch_stocks_price(['TCS.NS', 'INFY.NS'])
-    TCS.NS     3500.25
-    INFY.NS    1800.75
-    Name: latest_close, dtype: float64
+    Internal method used by fetch_stocks_price.
     """
     # Coerce input to list
     if isinstance(stocks, str):
@@ -553,6 +518,103 @@ def fetch_stocks_price(
         start_offset_days=start_offset_days,
         end_offset_days=end_offset_days,
     )
+
+
+def fetch_stocks_price(
+    stocks: Union[List[str], Dict[str, str]],
+    on_date: date = None,
+    start_offset_days: int = 4,
+    end_offset_days: int = 1,
+    client: Optional[YFinanceClientInterface] = None,
+) -> pd.Series:
+    """Fetch the latest stock price for given ticker symbols with fallback support.
+
+    Retrieves the closing price for one or more stock tickers. If a dictionary
+    mapping {ISIN: Symbol} is provided, it attempts to fetch by ISIN first.
+    If ISIN fetch fails (returns NaN), it falls back to fetching by 'Symbol.NS'.
+
+    Parameters
+    ----------
+    stocks : Union[List[str], Dict[str, str]]
+        - If List[str]: A list of ticker symbols/ISINs. No fallback logic.
+        - If Dict[str, str]: A dictionary mapping {ISIN: Symbol}.
+          Fallback logic is enabled (ISIN -> Symbol.NS).
+    on_date : date, optional
+        The target date for which to fetch prices. Defaults to today's date.
+    start_offset_days : int, optional
+        Number of days to offset backwards from on_date. Defaults to 4.
+    end_offset_days : int, optional
+        Number of days to offset forwards from on_date. Defaults to 1.
+    client : Optional[YFinanceClientInterface]
+        yfinance client to use.
+
+    Returns
+    -------
+    pd.Series
+        A pandas Series with ticker symbols/ISINs as index and their latest closing
+        prices as values.
+    """
+    if isinstance(stocks, list):
+        # Legacy behavior: just fetch what's requested
+        return _fetch_raw_stocks_price(
+            stocks,
+            on_date=on_date,
+            start_offset_days=start_offset_days,
+            end_offset_days=end_offset_days,
+            client=client,
+        )
+
+    if isinstance(stocks, dict):
+        # Fallback logic behavior
+        isins = list(stocks.keys())
+        latest_prices = _fetch_raw_stocks_price(
+            isins,
+            on_date=on_date,
+            start_offset_days=start_offset_days,
+            end_offset_days=end_offset_days,
+            client=client,
+        )
+
+        # Check for missing prices
+        missing_prices = latest_prices[latest_prices.isna()]
+        if not missing_prices.empty:
+            missing_isins = missing_prices.index
+            log.info(
+                f"Price fetch failed for {len(missing_isins)} ISINs. Attempting fallback to Symbol.NS."
+            )
+
+            # Prepare fallback symbols map {ISIN: Symbol.NS}
+            fallback_map = {}
+            for isin in missing_isins:
+                symbol = stocks.get(isin)
+                if symbol:
+                    fallback_map[isin] = f"{symbol}.NS"
+
+            if fallback_map:
+                # Fetch prices for symbols
+                symbol_prices = _fetch_raw_stocks_price(
+                    list(fallback_map.values()),
+                    on_date=on_date,
+                    start_offset_days=start_offset_days,
+                    end_offset_days=end_offset_days,
+                    client=client,
+                )
+
+                # Update original series with fallback results
+                for isin, symbol_ns in fallback_map.items():
+                    if symbol_ns in symbol_prices and not pd.isna(
+                        symbol_prices[symbol_ns]
+                    ):
+                        latest_prices[isin] = symbol_prices[symbol_ns]
+                        log.info(
+                            f"Fallback success: {isin} -> {symbol_ns} -> {symbol_prices[symbol_ns]}"
+                        )
+                    else:
+                        log.warning(f"Fallback failed for {isin} (Symbol: {symbol_ns})")
+
+        return latest_prices
+
+    raise ValueError("stocks argument must be a List[str] or Dict[str, str]")
 
 
 def extract_corporate_actions(

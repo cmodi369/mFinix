@@ -101,7 +101,11 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
     portfolio_stocks = dp.get_portfolio_stocks(transactions_data)
 
     # fetch latest stock price
-    latest_stock_price_data = fetch_stocks_price(portfolio_stocks.index.unique())
+    # Create ISIN -> Symbol mapping for fallback logic in fetch_stocks_price
+    # portfolio_stocks index is ISIN
+    isin_symbol_map = portfolio_stocks[col.SYMBOL].to_dict()
+
+    latest_stock_price_data = fetch_stocks_price(isin_symbol_map)
     latest_stock_price_data.name = col.CURRENT_PRICE
 
     # add latest price in portfolio and transactions data

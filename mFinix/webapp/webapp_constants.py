@@ -179,7 +179,7 @@ class SidebarStyles:
         "display": "flex",
         "flex-direction": "column",
         "gap": "10px",
-        "height": "100vh", # Ensure full height for background
+        "height": "100vh",  # Ensure full height for background
     }
 
     # Header styles

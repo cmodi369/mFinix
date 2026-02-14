@@ -9,8 +9,7 @@ from mFinix.webapp.webapp_constants import SidebarStyles
 
 
 class SideBar:
-    """Navigation sidebar
-    """
+    """Navigation sidebar"""
 
     def __init__(self, tabs: list, dashboard):
         """Initialize the sidebar with tab navigation.
