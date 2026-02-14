@@ -51,17 +51,17 @@ COL_NAME_MAPPING: dict[str, str] = {
 
 
 class UIStyles:
-    # Color constants
-    POSITIVE_COLOR = "#2ecc71"  # Emerald Green
-    NEGATIVE_COLOR = "#e74c3c"  # Cinnabar Red
-    NEUTRAL_COLOR = "#95a5a6"  # Asbestos Gray
-    INDICATOR_BG_COLOR = "#f8f9fa"  # Light background for indicators
-    HEADER_COLOR = "#2c3e50"  # Midnight Blue
-    ACCENT_COLOR = "#3498db"  # Peter River Blue
+    # Color constants - Using Panel CSS variables for theme compatibility
+    POSITIVE_COLOR = "var(--success-foreground-rest)"  # Adapts to theme (Green)
+    NEGATIVE_COLOR = "var(--danger-foreground-rest)"  # Adapts to theme (Red)
+    NEUTRAL_COLOR = "var(--neutral-foreground-rest)"  # Adapts to theme (Gray)
+    INDICATOR_BG_COLOR = "#fbbf24"  # Input background for distinction
+    HEADER_COLOR = "var(--neutral-foreground-rest)"
+    ACCENT_COLOR = "var(--accent-foreground-rest)"
 
     # Table styles
-    TABLE_THEME = "fast"
-    TABLE_HEADER_BG = "#f2f2f2"
+    TABLE_THEME = "fast"  # Fast theme supports variables better usually, or we override
+    TABLE_HEADER_BG = "var(--neutral-fill-hover)"
     TABLE_ROW_HEIGHT = 35
 
     # Text styles
@@ -71,48 +71,38 @@ class UIStyles:
     # Custom CSS
     CUSTOM_CSS = """
     .tabulator-header {
-        background-color: #f8f9fa !important;
+        background-color: var(--neutral-fill-hover) !important;
         font-weight: 600 !important;
-        color: #2c3e50 !important;
-        border-bottom: 2px solid #e0e0e0 !important;
+        color: var(--neutral-foreground-rest) !important;
+        border-bottom: 2px solid var(--neutral-stroke-rest) !important;
         text-transform: uppercase;
         font-size: 0.85rem;
         letter-spacing: 0.5px;
     }
     .tabulator-row {
-        border-bottom: 1px solid #f0f0f0 !important;
+        border-bottom: 1px solid var(--neutral-stroke-divider-rest) !important;
         transition: background-color 0.2s ease;
+        background-color: var(--neutral-fill-card-rest) !important;
+        color: var(--neutral-foreground-rest) !important;
     }
     .tabulator-row-odd {
-        background-color: #ffffff !important;
+        background-color: var(--neutral-fill-card-rest) !important;
     }
     .tabulator-row-even {
-        background-color: #fafbfc !important;
+        background-color: var(--neutral-fill-card-rest) !important;
     }
     .tabulator-row:hover {
-        background-color: #f1f4f8 !important;
+        background-color: var(--neutral-fill-hover) !important;
         cursor: pointer;
     }
-    .pn-indicator-card {
-        background-color: #ffffff;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        border: 1px solid #eef0f3;
-    }
-    .pn-indicator-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 16px rgba(0,0,0,0.12);
-    }
     .metric-label {
-        color: #7f8c8d;
+        color: var(--neutral-foreground-hint);
         font-size: 0.9rem;
         font-weight: 500;
         margin-bottom: 4px;
     }
     .metric-value {
-        color: #2c3e50;
+        color: var(--neutral-foreground-rest);
         font-size: 1.8rem;
         font-weight: 700;
     }
@@ -130,15 +120,15 @@ class SidebarStyles:
     - Accessible color contrasts
     """
 
-    # Color palette
-    PRIMARY_COLOR = "#3498db"  # Peter River Blue
-    PRIMARY_DARK = "#2980b9"  # Darker shade for hover
-    BG_COLOR = "#ffffff"  # White background
-    TEXT_COLOR = "#2c3e50"  # Midnight Blue
-    TEXT_SECONDARY = "#7f8c8d"  # Gray for secondary text
-    BORDER_COLOR = "#e0e0e0"  # Light gray for borders
-    ACTIVE_BG = "#ecf0f6"  # Light blue for active state background
-    ACTIVE_BORDER = "#3498db"  # Blue for left border
+    # Color palette - CSS Variables
+    PRIMARY_COLOR = "var(--accent-foreground-rest)"
+    PRIMARY_DARK = "var(--accent-foreground-active)"
+    BG_COLOR = "var(--neutral-fill-card-rest)"
+    TEXT_COLOR = "var(--neutral-foreground-rest)"
+    TEXT_SECONDARY = "var(--neutral-foreground-hint)"
+    BORDER_COLOR = "var(--neutral-stroke-divider-rest)"
+    ACTIVE_BG = "var(--neutral-fill-hover)"
+    ACTIVE_BORDER = "var(--accent-foreground-rest)"
 
     # Button styling
     BUTTON_STYLES = {
@@ -147,9 +137,9 @@ class SidebarStyles:
         "font-weight": "500",
         "font-size": "14px",
         "color": TEXT_COLOR,
-        "background-color": BG_COLOR,
+        "background-color": "transparent",
         "border": "1px solid transparent",
-        "border-left": f"4px solid transparent",
+        "border-left": "4px solid transparent",
         "cursor": "pointer",
         "display": "flex",
         "align-items": "center",
@@ -165,7 +155,7 @@ class SidebarStyles:
         "border-left": f"4px solid {ACTIVE_BORDER}",
         "color": PRIMARY_COLOR,
         "font-weight": "600",
-        "box-shadow": "inset 2px 0 0 0 " + ACTIVE_BORDER,  # Subtle inner shadow
+        # "box-shadow": "inset 2px 0 0 0 " + ACTIVE_BORDER, # Can sometimes conflict with border-left
     }
 
     # Sidebar container styling
@@ -176,6 +166,7 @@ class SidebarStyles:
         "display": "flex",
         "flex-direction": "column",
         "gap": "10px",
+        "height": "100vh", # Ensure full height for background
     }
 
     # Header styles
@@ -202,7 +193,7 @@ class SidebarStyles:
         "background-color": BG_COLOR,
         "border": f"1px solid {BORDER_COLOR}",
         "border-radius": "12px",
-        "box_shadow": "0 4px 6px rgba(0, 0, 0, 0.05)",
+        "box_shadow": "var(--elevation-shadow-3)",
         "padding": "24px",
         "margin_bottom": "24px",
         "display": "flex",
@@ -213,8 +204,8 @@ class SidebarStyles:
     CUSTOM_CSS = """
             /* Sidebar styling */
         .pn-sidebar {
-            background-color: #ffffff;
-            border-right: 1px solid #e0e0e0;
+            background-color: var(--neutral-fill-card-rest);
+            border-right: 1px solid var(--neutral-stroke-divider-rest);
             padding: 0;
         }
 
@@ -222,41 +213,43 @@ class SidebarStyles:
         .pn-btn {
             border-radius: 0px 4px 4px 0px;
             transition: all 0.2s ease-in-out;
+            color: var(--neutral-foreground-rest);
         }
 
         .pn-btn:hover {
-            background-color: #ecf0f6 !important;
+            background-color: var(--neutral-fill-hover) !important;
             transform: translateX(2px);
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         .pn-btn-light {
-            color: #2c3e50;
+            color: var(--neutral-foreground-rest);
             border: 1px solid transparent;
             border-left: 4px solid transparent;
+            background-color: transparent;
         }
 
         .pn-btn-light:active {
-            background-color: #ecf0f6 !important;
-            border-left: 4px solid #3498db;
-            color: #3498db;
+            background-color: var(--neutral-fill-active) !important;
+            border-left: 4px solid var(--accent-foreground-rest);
+            color: var(--accent-foreground-rest);
         }
 
         /* Main content area improvements */
         .pn-main {
             padding: 20px;
-            background-color: #f8f9fa;
+            background-color: var(--neutral-fill-bg);
         }
 
         /* Typography improvements */
         h1, h2, h3 {
-            color: #2c3e50;
+            color: var(--neutral-foreground-rest);
             font-weight: 600;
         }
 
         /* Focus states for accessibility */
         .pn-btn:focus {
-            outline: 2px solid #3498db;
+            outline: 2px solid var(--accent-foreground-rest);
             outline-offset: 2px;
         }
 
@@ -269,10 +262,10 @@ class SidebarStyles:
 
         /* Card styling for content sections */
         .pn-card {
-            background-color: #ffffff;
-            border: 1px solid #e0e0e0;
+            background-color: var(--neutral-fill-card-rest);
+            border: 1px solid var(--neutral-stroke-card-rest);
             border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: var(--elevation-shadow-1);
             padding: 16px;
             margin-bottom: 16px;
         }"""

@@ -80,8 +80,9 @@ class TabStocks:
                 "background-color": UIStyles.INDICATOR_BG_COLOR,
                 "border-radius": "10px",
                 "padding": "15px",
-                "box-shadow": "2px 2px 5px rgba(0,0,0,0.1)",
+                "box-shadow": "var(--elevation-shadow-1)",
                 "margin": "10px",
+                "border": "1px solid var(--neutral-stroke-input-rest)",
             },
         )
 
@@ -103,8 +104,9 @@ class TabStocks:
                 "background-color": UIStyles.INDICATOR_BG_COLOR,
                 "border-radius": "10px",
                 "padding": "15px",
-                "box-shadow": "2px 2px 5px rgba(0,0,0,0.1)",
+                "box-shadow": "var(--elevation-shadow-1)",
                 "margin": "10px",
+                "border": "1px solid var(--neutral-stroke-input-rest)",
             },
         )
 
