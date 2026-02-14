@@ -53,7 +53,7 @@ class TransactionsManager:
                     },
                 ),
                 self.widgets["transactions_table"],
-                styles=webapp_const.SidebarStyles.CARD_STYLE,
+                styles=webapp_const.UIStyles.CARD_STYLE,
             )
         ]
 

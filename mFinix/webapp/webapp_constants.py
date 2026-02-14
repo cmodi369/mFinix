@@ -58,6 +58,7 @@ class UIStyles:
     INDICATOR_BG_COLOR = "#fbbf24"  # Input background for distinction
     HEADER_COLOR = "var(--neutral-foreground-rest)"
     ACCENT_COLOR = "var(--accent-foreground-rest)"
+    BORDER_STYLE = "3px solid #7c6464"
 
     # Table styles
     TABLE_THEME = "fast"  # Fast theme supports variables better usually, or we override
@@ -67,6 +68,18 @@ class UIStyles:
     # Text styles
     INDICATOR_TITLE_SIZE = "14pt"
     INDICATOR_VALUE_SIZE = "24pt"
+
+    # Card styles
+    CARD_BACKGROUND = "var(--neutral-fill-card-rest)"
+    CARD_STYLE = {
+        "background-color": CARD_BACKGROUND,
+        "border": BORDER_STYLE,
+        "border-radius": "12px",
+        "box_shadow": "var(--elevation-shadow-3)",
+        "margin_bottom": "24px",
+        "display": "flex",
+        "flex_direction": "column",
+    }
 
     # Custom CSS
     CUSTOM_CSS = """
@@ -186,19 +199,6 @@ class SidebarStyles:
         "color": TEXT_SECONDARY,
         "font-size": "11px",
         "line-height": "1.5",
-    }
-
-    # Card styling for content sections
-    CARD_STYLE = {
-        "background-color": BG_COLOR,
-        "border": f"1px solid {BORDER_COLOR}",
-        "border-radius": "12px",
-        "box_shadow": "var(--elevation-shadow-3)",
-        "padding": "24px",
-        "margin_bottom": "24px",
-        "display": "flex",
-        "flex_direction": "column",
-        "gap": "16px",
     }
 
     CUSTOM_CSS = """

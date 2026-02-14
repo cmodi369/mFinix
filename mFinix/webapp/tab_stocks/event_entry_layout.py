@@ -73,7 +73,7 @@ class EventDataManager:
                 pn.Row(self.widgets["stock_select"], self.widgets["isin_input"]),
                 self.widgets["events_menu"],
                 self._layout,
-                styles=webapp_const.SidebarStyles.CARD_STYLE,
+                styles=webapp_const.UIStyles.CARD_STYLE,
             )
         ]
 

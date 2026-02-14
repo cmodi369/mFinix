@@ -82,7 +82,7 @@ class TabStocks:
                 "padding": "15px",
                 "box-shadow": "var(--elevation-shadow-1)",
                 "margin": "10px",
-                "border": "1px solid var(--neutral-stroke-input-rest)",
+                "border": "3px solid var(--neutral-stroke-input-rest)",
             },
         )
 
@@ -246,9 +246,9 @@ class TabStocks:
                 self.tab_widgets["portfolio_xirr_text"],
                 self.tab_widgets["portfolio_value_text"],
                 sizing_mode="stretch_width",
-                styles={"justify-content": "space-around", "gap": "20px"},
+                styles={"justify-content": "space-around"},
             ),
-            styles=webapp_const.SidebarStyles.CARD_STYLE,
+            styles=webapp_const.UIStyles.CARD_STYLE,
         )
 
         # Holdings Card
@@ -262,7 +262,7 @@ class TabStocks:
                 },
             ),
             self.tab_widgets["stocks_xirr_table"],
-            styles=webapp_const.SidebarStyles.CARD_STYLE,
+            styles=webapp_const.UIStyles.CARD_STYLE,
         )
 
         self.layout.objects = [
