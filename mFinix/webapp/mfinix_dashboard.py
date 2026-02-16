@@ -35,8 +35,8 @@ class Mfinix:
         ]
 
         self.dashboard = pn.template.FastListTemplate(
-            title="mFinix: Multi Asset Finance Explorer",
-            header_background="#2F4F4F",  # Peter River Blue
+            title="Multi Asset Finance Explorer",
+            header_background="#2F4F4F",
             accent_base_color="#DAA520",
             site="mFinix",
             sidebar_width=250,

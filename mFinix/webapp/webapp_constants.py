@@ -52,9 +52,9 @@ COL_NAME_MAPPING: dict[str, str] = {
 
 class UIStyles:
     # Color constants - Using Panel CSS variables for theme compatibility
-    POSITIVE_COLOR = "var(--success-foreground-rest)"  # Adapts to theme (Green)
-    NEGATIVE_COLOR = "var(--danger-foreground-rest)"  # Adapts to theme (Red)
-    NEUTRAL_COLOR = "var(--neutral-foreground-rest)"  # Adapts to theme (Gray)
+    POSITIVE_COLOR = "var(--success-text-color)"  # Adapts to theme (Green)
+    NEGATIVE_COLOR = "var(--danger-text-color)"  # Adapts to theme (Red)
+    NEUTRAL_COLOR = "var(--neutral-text-color)"  # Adapts to theme (Gray)
     INDICATOR_BG_COLOR = "#fbbf24"  # Input background for distinction
     HEADER_COLOR = "var(--neutral-foreground-rest)"
     ACCENT_COLOR = "var(--accent-foreground-rest)"
@@ -96,7 +96,7 @@ class UIStyles:
         border-bottom: 1px solid var(--neutral-stroke-divider-rest) !important;
         transition: background-color 0.2s ease;
         background-color: var(--neutral-fill-card-rest) !important;
-        color: var(--neutral-foreground-rest) !important;
+        color: var(--neutral-foreground-rest);
     }
     .tabulator-row-odd {
         background-color: var(--neutral-fill-card-rest) !important;

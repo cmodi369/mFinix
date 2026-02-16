@@ -202,11 +202,11 @@ class TabStocks:
         """Color-code P&L, P&L % and XIRR values"""
         return np.where(
             val > 0,
-            f"color: {UIStyles.POSITIVE_COLOR}; font-weight: bold",
+            f"color: {UIStyles.POSITIVE_COLOR} !important; font-weight: bold",
             np.where(
                 val < 0,
-                f"color: {UIStyles.NEGATIVE_COLOR}; font-weight: bold",
-                f"color: {UIStyles.NEUTRAL_COLOR}",
+                f"color: {UIStyles.NEGATIVE_COLOR} !important; font-weight: bold",
+                f"color: {UIStyles.NEUTRAL_COLOR} !important",
             ),
         )
 
