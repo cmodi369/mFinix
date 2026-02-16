@@ -98,20 +98,34 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
     #         _get_query_date(year))
 
     # get current portfolio stocks
-    portfolio_stocks = dp.get_portfolio_stocks(transactions_data)
+    portfolio_stocks = dp.get_portfolio_stocks(transactions_data).reset_index()
 
     # fetch latest stock price
-    # Create ISIN -> Symbol mapping for fallback logic in fetch_stocks_price
-    # portfolio_stocks index is ISIN
-    isin_symbol_map = portfolio_stocks[col.SYMBOL].to_dict()
+    # Create identifier -> Symbol mapping for fallback logic in fetch_stocks_price
+    # If ISIN is empty, use Symbol as identifier
+    portfolio_stocks["price_identifier"] = portfolio_stocks.apply(
+        lambda row: (
+            row[col.ISIN]
+            if pd.notna(row[col.ISIN]) and row[col.ISIN] != ""
+            else row[col.SYMBOL]
+        ),
+        axis=1,
+    )
+
+    isin_symbol_map = dict(
+        zip(portfolio_stocks["price_identifier"], portfolio_stocks[col.SYMBOL])
+    )
 
     latest_stock_price_data = fetch_stocks_price(isin_symbol_map)
     latest_stock_price_data.name = col.CURRENT_PRICE
 
     # add latest price in portfolio and transactions data
     portfolio_stocks = portfolio_stocks.merge(
-        latest_stock_price_data, left_index=True, right_index=True, how="left"
-    ).reset_index()
+        latest_stock_price_data,
+        left_on="price_identifier",
+        right_index=True,
+        how="left",
+    ).drop(columns=["price_identifier"])
     portfolio_stocks = portfolio_stocks.dropna(subset=col.CURRENT_PRICE)
     portfolio_stocks[col.TRADE_DATE] = date.today()
     portfolio_stocks[col.TRANSACTION_AMOUNT] = (
@@ -121,7 +135,7 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
 
     # calculate individual stocks XIRR
     stocks_xirr_df = (
-        full_xirr_data.groupby([col.ISIN, col.SYMBOL], as_index=False)
+        full_xirr_data.groupby(col.SYMBOL, as_index=False)
         .apply(
             lambda group: (
                 xirr(
@@ -140,7 +154,7 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
 
     # calculate stocks XIRR
     stocks_xirr_df = (
-        portfolio_stocks.merge(stocks_xirr_df, how="inner", on=[col.ISIN, col.SYMBOL])
+        portfolio_stocks.merge(stocks_xirr_df, how="inner", on=col.SYMBOL)
         .sort_values(by=col.SYMBOL)
         .reset_index(drop=True)
     )

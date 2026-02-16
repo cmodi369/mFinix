@@ -73,8 +73,8 @@ class _TradeBookProcessor:
             tradebook_df[col.PRICE] * tradebook_df[col.QUANTITY]
         )
 
-        # Calculate cumulative quantity by ISIN
-        tradebook_df[col.TOTAL_QUANTITY] = tradebook_df.groupby(col.ISIN)[
+        # Calculate cumulative quantity by Symbol to handle mixed ISINs/duplicate entries
+        tradebook_df[col.TOTAL_QUANTITY] = tradebook_df.groupby(col.SYMBOL)[
             col.QUANTITY
         ].cumsum()
 

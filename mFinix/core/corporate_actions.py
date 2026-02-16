@@ -143,7 +143,9 @@ def add_corporate_actions_in_tradebook(trade_data: pd.DataFrame):
     )
 
     # adjust total quantity column based on splits data
-    ret_data[col.TOTAL_QUANTITY] = ret_data.groupby(col.ISIN)[col.QUANTITY].cumsum()
+    ret_data[col.TOTAL_QUANTITY] = ret_data.groupby(col.SYMBOL)[
+        col.QUANTITY
+    ].cumsum()
 
     # add dividend data
     ret_data = pd.concat([ret_data, dividend_data])

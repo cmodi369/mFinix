@@ -15,7 +15,7 @@ def get_portfolio_stocks(trade_data: pd.DataFrame) -> pd.DataFrame:
     # find latest row with quantity for each stock
     last_rows = (
         trade_data[trade_data[TRADE_TYPE].isin([const.BUY, const.SELL])]
-        .groupby(ISIN)
+        .groupby(SYMBOL)
         .last()
     )
 
