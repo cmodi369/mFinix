@@ -6,7 +6,15 @@ import panel as pn
 import mFinix.constants.columns as col
 import mFinix.webapp.webapp_constants as webapp_const
 from mFinix.util import log
-from mFinix.webapp.tab_stocks.corporate_events_manager import IPOInputsManager
+from mFinix.webapp.tab_stocks.corporate_events_manager import (
+    BonusInputsManager,
+    BuybackInputsManager,
+    DemergerInputsManager,
+    IPOInputsManager,
+    MergerInputsManager,
+    SplitInputsManager,
+    TransactionInputsManager,
+)
 from mFinix.webapp.tab_stocks.utility import run_once
 from mFinix.webapp.widgets import (
     CustomAutoCompleteInput,
@@ -45,11 +53,56 @@ class EventDataManager:
             self._layout,
         )
 
+        self._bonus_manager = BonusInputsManager(
+            self.transactions_data,
+            self.equity_holdings_data,
+            self.widgets,
+            self._layout,
+        )
+
+        self._split_manager = SplitInputsManager(
+            self.transactions_data,
+            self.equity_holdings_data,
+            self.widgets,
+            self._layout,
+        )
+
+        self._transaction_manager = TransactionInputsManager(
+            self.transactions_data,
+            self.equity_holdings_data,
+            self.widgets,
+            self._layout,
+        )
+
+        self._buyback_manager = BuybackInputsManager(
+            self.transactions_data,
+            self.equity_holdings_data,
+            self.widgets,
+            self._layout,
+        )
+
+        self._merger_manager = MergerInputsManager(
+            self.transactions_data,
+            self.equity_holdings_data,
+            self.widgets,
+            self._layout,
+        )
+
+        self._demerger_manager = DemergerInputsManager(
+            self.transactions_data,
+            self.equity_holdings_data,
+            self.widgets,
+            self._layout,
+        )
+
         self._event_layout_mapping: dict[str, callable] = {
-            webapp_const.EventOptions.ADD_BONUS: self._show_add_bonus_layout,
-            webapp_const.EventOptions.ADD_SPLIT: self._show_add_split_layout,
-            webapp_const.EventOptions.ADD_TRANSACTION: self._show_add_transactions_layout,
+            webapp_const.EventOptions.ADD_BONUS: self._bonus_manager.show_layout,
+            webapp_const.EventOptions.ADD_SPLIT: self._split_manager.show_layout,
+            webapp_const.EventOptions.ADD_TRANSACTION: self._transaction_manager.show_layout,
             webapp_const.EventOptions.ADD_IPO: self._ipo_manager.show_layout,
+            webapp_const.EventOptions.ADD_BUYBACK: self._buyback_manager.show_layout,
+            webapp_const.EventOptions.ADD_MERGER: self._merger_manager.show_layout,
+            webapp_const.EventOptions.ADD_DEMERGER: self._demerger_manager.show_layout,
         }
 
         self._initialize_common_widgets()
@@ -116,19 +169,21 @@ class EventDataManager:
         self._event_selected = event.new
         self._event_layout_mapping[event.new]()
 
-    def _show_add_bonus_layout(self):
-        pass
-
-    def _show_add_transactions_layout(self):
-        pass
-
-    def _show_add_split_layout(self):
-        pass
-
     def _on_click_submit_cb(self, _):
         # Delegate data processing to appropriate manager
-        if self._event_selected == webapp_const.EventOptions.ADD_IPO:
-            self._ipo_manager.process_submission()
+        manager_mapping = {
+            webapp_const.EventOptions.ADD_IPO: self._ipo_manager,
+            webapp_const.EventOptions.ADD_BONUS: self._bonus_manager,
+            webapp_const.EventOptions.ADD_SPLIT: self._split_manager,
+            webapp_const.EventOptions.ADD_TRANSACTION: self._transaction_manager,
+            webapp_const.EventOptions.ADD_BUYBACK: self._buyback_manager,
+            webapp_const.EventOptions.ADD_MERGER: self._merger_manager,
+            webapp_const.EventOptions.ADD_DEMERGER: self._demerger_manager,
+        }
+
+        manager = manager_mapping.get(self._event_selected)
+        if manager:
+            manager.process_submission()
 
     def _update_isin(self, event):
         self.widgets["isin_input"].value = self.transactions_data[

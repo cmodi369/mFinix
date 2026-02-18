@@ -31,6 +31,8 @@ DIVIDEND_CSV: str = "dividends.csv"
 SPLIT_ACTIONS_CSV: str = "splits.csv"
 MERGER_CSV: str = "merger.csv"
 DEMERGER_CSV: str = "demerger.csv"
+BONUS_CSV: str = "bonus.csv"
+BUYBACK_CSV: str = "buyback.csv"
 IPO_CSV: str = "ipo.csv"
 LAST_DATE_TXT: str = "last_date.txt"
 
@@ -39,5 +41,9 @@ BUY: str = "buy"
 SELL: str = "sell"
 DIVIDEND: str = "dividend"
 STOCK_SPLIT: str = "split"
+BONUS: str = "bonus"
+BUYBACK: str = "buyback"
+MERGER: str = "merger"
+DEMERGER: str = "demerger"
 
 DEFAULT_LAST_DATE: date = date(2015, 1, 1)

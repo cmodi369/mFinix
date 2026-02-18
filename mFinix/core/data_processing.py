@@ -14,7 +14,19 @@ from mFinix.core.read_kite_data import read_tradebook_data
 def get_portfolio_stocks(trade_data: pd.DataFrame) -> pd.DataFrame:
     # find latest row with quantity for each stock
     last_rows = (
-        trade_data[trade_data[TRADE_TYPE].isin([const.BUY, const.SELL])]
+        trade_data[
+            trade_data[TRADE_TYPE].isin(
+                [
+                    const.BUY,
+                    const.SELL,
+                    const.STOCK_SPLIT,
+                    const.BONUS,
+                    const.BUYBACK,
+                    const.MERGER,
+                    const.DEMERGER,
+                ]
+            )
+        ]
         .groupby(SYMBOL)
         .last()
     )

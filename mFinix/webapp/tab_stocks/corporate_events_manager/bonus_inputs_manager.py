@@ -34,10 +34,11 @@ class BonusInputsManager(CorporateEventHandler):
     def __init__(
         self,
         transactions_data: pd.DataFrame,
+        holdings_data: pd.DataFrame,
         widgets: dict,
         layout: pn.Column,
     ) -> None:
-        super().__init__(transactions_data, widgets, layout)
+        super().__init__(transactions_data, holdings_data, widgets, layout)
 
     def show_layout(self) -> None:
         """Display the bonus event entry layout (not yet implemented)."""

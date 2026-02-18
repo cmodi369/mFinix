@@ -8,9 +8,18 @@ event-specific logic for user input handling, layouts, and data processing.
 from mFinix.webapp.tab_stocks.corporate_events_manager.bonus_inputs_manager import (
     BonusInputsManager,
 )
+from mFinix.webapp.tab_stocks.corporate_events_manager.buyback_inputs_manager import (
+    BuybackInputsManager,
+)
+from mFinix.webapp.tab_stocks.corporate_events_manager.demerger_inputs_manager import (
+    DemergerInputsManager,
+)
 from mFinix.webapp.tab_stocks.corporate_events_manager.ipo_inputs_manager import (
     CorporateEventHandler,
     IPOInputsManager,
+)
+from mFinix.webapp.tab_stocks.corporate_events_manager.merger_inputs_manager import (
+    MergerInputsManager,
 )
 from mFinix.webapp.tab_stocks.corporate_events_manager.split_inputs_manager import (
     SplitInputsManager,
@@ -25,4 +34,7 @@ __all__ = [
     "BonusInputsManager",
     "SplitInputsManager",
     "TransactionInputsManager",
+    "BuybackInputsManager",
+    "MergerInputsManager",
+    "DemergerInputsManager",
 ]

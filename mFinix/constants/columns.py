@@ -9,6 +9,10 @@ TRANSACTION_AMOUNT: str = "transaction_amount"
 
 # ledger data column names
 POSTING_DATE: str = "posting_date"
+PARTICULARS: str = "particulars"
+DEBIT: str = "debit"
+CREDIT: str = "credit"
+NET_BALANCE: str = "net_balance"
 
 # column names used by yf stock actions
 DIVIDEND: str = "Dividends"

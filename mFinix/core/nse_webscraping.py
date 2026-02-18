@@ -386,6 +386,152 @@ class IPOParser(DataParserInterface):
             raise NSEParsingError(f"Failed to parse IPO data: {str(exc)}") from exc
 
 
+class BuybackParser(DataParserInterface):
+    """Parser for NSE buyback corporate actions.
+
+    Extracts buyback information from NSE corporate actions API response.
+    """
+
+    @staticmethod
+    def _extract_buyback_price(text: str) -> float:
+        """Extract buyback price from subject text.
+
+        Example text: "Buyback Of Equity Shares @ Rs 1200/- Per Share"
+        """
+        pattern = r"Rs\s*(\d+\.?\d*)"
+        match = re.search(pattern, text, re.I)
+        if match:
+            return float(match.group(1))
+        return 0.0
+
+    def parse(self, response_data: dict) -> pd.DataFrame:
+        """Parse buyback data from NSE corporate actions response.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with buyback_price and date index.
+        """
+        try:
+            if not isinstance(response_data, list):
+                raise NSEParsingError(
+                    f"Expected list response, got {type(response_data)}"
+                )
+
+            corp_df = pd.DataFrame(response_data)
+            corp_df = corp_df.replace("-", np.nan)
+
+            # Filter for buyback records
+            buyback_data = corp_df[
+                corp_df["subject"].str.contains("Buyback", na=False, case=False)
+            ]
+
+            if buyback_data.empty:
+                return pd.DataFrame()
+
+            result_df = pd.DataFrame(
+                {
+                    "buyback_price": buyback_data["subject"]
+                    .apply(self._extract_buyback_price)
+                    .values,
+                },
+                index=pd.to_datetime(buyback_data["exDate"]),
+            )
+
+            log.info(
+                "Successfully parsed %d buyback records from NSE",
+                len(result_df),
+            )
+            return result_df
+
+        except (KeyError, ValueError) as exc:
+            raise NSEParsingError(f"Failed to parse buyback data: {str(exc)}") from exc
+
+
+class BonusParser(DataParserInterface):
+    """Parser for NSE bonus corporate actions."""
+
+    def parse(self, response_data: dict) -> pd.DataFrame:
+        try:
+            if not isinstance(response_data, list):
+                return pd.DataFrame()
+
+            corp_df = pd.DataFrame(response_data)
+            bonus_data = corp_df[
+                corp_df["subject"].str.contains("Bonus", na=False, case=False)
+            ]
+
+            if bonus_data.empty:
+                return pd.DataFrame()
+
+            # Note: Bonus ratio parsing could be complex, for now we just log it
+            # and return the date. Quantity updates might need manual confirmation
+            # or more sophisticated regex if ratio is needed.
+            result_df = pd.DataFrame(
+                {
+                    "subject": bonus_data["subject"].values,
+                },
+                index=pd.to_datetime(bonus_data["exDate"]),
+            )
+            return result_df
+        except Exception:
+            return pd.DataFrame()
+
+
+class MergerParser(DataParserInterface):
+    """Parser for NSE merger corporate actions."""
+
+    def parse(self, response_data: dict) -> pd.DataFrame:
+        try:
+            if not isinstance(response_data, list):
+                return pd.DataFrame()
+
+            corp_df = pd.DataFrame(response_data)
+            merger_data = corp_df[
+                corp_df["subject"].str.contains("Merger|Amalgamation", na=False, case=False)
+            ]
+
+            if merger_data.empty:
+                return pd.DataFrame()
+
+            result_df = pd.DataFrame(
+                {
+                    "subject": merger_data["subject"].values,
+                },
+                index=pd.to_datetime(merger_data["exDate"]),
+            )
+            return result_df
+        except Exception:
+            return pd.DataFrame()
+
+
+class DemergerParser(DataParserInterface):
+    """Parser for NSE demerger corporate actions."""
+
+    def parse(self, response_data: dict) -> pd.DataFrame:
+        try:
+            if not isinstance(response_data, list):
+                return pd.DataFrame()
+
+            corp_df = pd.DataFrame(response_data)
+            demerger_data = corp_df[
+                corp_df["subject"].str.contains("Demerger", na=False, case=False)
+            ]
+
+            if demerger_data.empty:
+                return pd.DataFrame()
+
+            result_df = pd.DataFrame(
+                {
+                    "subject": demerger_data["subject"].values,
+                },
+                index=pd.to_datetime(demerger_data["exDate"]),
+            )
+            return result_df
+        except Exception:
+            return pd.DataFrame()
+
+
 # ============================================================================
 # Data Extractor (Orchestrator)
 # ============================================================================
@@ -624,3 +770,78 @@ def extract_past_ipo_data(
     finally:
         if should_close_client:
             client.close()
+
+
+def extract_buyback_data(
+    stock_name: str, client: Optional[HttpClientInterface] = None
+) -> pd.DataFrame:
+    """Extract buyback corporate actions data for a stock from NSE.
+
+    Parameters
+    ----------
+    stock_name : str
+        Stock symbol for extraction.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with buyback_price, indexed by ex-date.
+    """
+    should_close_client = client is None
+    if client is None:
+        client = NSEHttpClient()
+
+    try:
+        parser = BuybackParser()
+        extractor = NSEDataExtractor(client, parser)
+        return extractor.extract_corporate_actions(stock_name)
+    except Exception as e:
+        log.warning("Could not extract buyback data for %s: %s", stock_name, e)
+        return pd.DataFrame()
+    finally:
+        if should_close_client:
+            client.close()
+
+
+def extract_all_corporate_actions(
+    stock_name: str, client: Optional[HttpClientInterface] = None
+) -> Dict[str, pd.DataFrame]:
+    """Extract all corporate actions data for a stock from NSE.
+
+    Returns
+    -------
+    Dict[str, pd.DataFrame]
+        Dictionary with keys 'dividend', 'buyback', 'bonus', 'merger', 'demerger'.
+    """
+    should_close_client = client is None
+    if client is None:
+        client = NSEHttpClient()
+
+    results = {}
+    try:
+        # Access stock URL to set cookies once
+        stock_url = const.NSE_STOCK_URL.format(stock_name=stock_name)
+        client.get(stock_url)
+
+        # Get raw data once
+        corp_actions_url = const.NSE_CORP_ACTIONS_URL.format(stock_name=stock_name)
+        response = client.get(corp_actions_url)
+        json_data = response.json_data
+
+        if not json_data:
+            return results
+
+        # Parse with different parsers
+        results[const.DIVIDEND] = DividendParser().parse(json_data)
+        results[const.BUYBACK] = BuybackParser().parse(json_data)
+        results[const.BONUS] = BonusParser().parse(json_data)
+        results[const.MERGER] = MergerParser().parse(json_data)
+        results[const.DEMERGER] = DemergerParser().parse(json_data)
+
+    except Exception as e:
+        log.warning("Could not extract all corporate actions for %s: %s", stock_name, e)
+    finally:
+        if should_close_client:
+            client.close()
+
+    return results

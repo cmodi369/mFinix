@@ -73,13 +73,21 @@ class _TradeBookProcessor:
             tradebook_df[col.PRICE] * tradebook_df[col.QUANTITY]
         )
 
+        # Extract symbol (remove suffix like -EQ, -X, etc.)
+        tradebook_df[col.SYMBOL] = tradebook_df[col.SYMBOL].str.split("-").str[0]
+
+        # Normalize SGB symbols (merge SGB28, SGB28I, etc.)
+        # If symbol starts with SGB and ends with I, remove I
+        tradebook_df.loc[
+            tradebook_df[col.SYMBOL].str.startswith("SGB")
+            & tradebook_df[col.SYMBOL].str.endswith("I"),
+            col.SYMBOL,
+        ] = tradebook_df[col.SYMBOL].str.rstrip("I")
+
         # Calculate cumulative quantity by Symbol to handle mixed ISINs/duplicate entries
         tradebook_df[col.TOTAL_QUANTITY] = tradebook_df.groupby(col.SYMBOL)[
             col.QUANTITY
         ].cumsum()
-
-        # Extract symbol (remove suffix like -EQ)
-        tradebook_df[col.SYMBOL] = tradebook_df[col.SYMBOL].str.split("-").str[0]
 
         return tradebook_df
 
@@ -160,6 +168,12 @@ class _HoldingProcessor:
             "Quantity Available": col.QUANTITY,
         }
         holdings_df = holdings_df.rename(columns=column_mapping)
+
+        # Clean symbol (remove suffixes like -X, -BE, -EQ, -G)
+        if col.SYMBOL in holdings_df.columns:
+            holdings_df[col.SYMBOL] = (
+                holdings_df[col.SYMBOL].astype(str).str.split("-").str[0]
+            )
 
         # Add as_on_date column if provided
         if as_on_date is not None:
