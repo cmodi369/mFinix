@@ -488,7 +488,9 @@ class MergerParser(DataParserInterface):
 
             corp_df = pd.DataFrame(response_data)
             merger_data = corp_df[
-                corp_df["subject"].str.contains("Merger|Amalgamation", na=False, case=False)
+                corp_df["subject"].str.contains(
+                    "Merger|Amalgamation", na=False, case=False
+                )
             ]
 
             if merger_data.empty:

@@ -10,10 +10,7 @@ import mFinix.constants.columns as col
 import mFinix.constants.constants as const
 import mFinix.core.data_management as dm
 import mFinix.core.data_processing as dp
-from mFinix.core.corporate_actions import (
-    add_corporate_actions_in_tradebook,
-    automatic_update_corporate_actions_data,
-)
+from mFinix.core.corporate_actions import add_corporate_actions_in_tradebook
 from mFinix.core.yfinance_query import fetch_stocks_price
 
 

@@ -4,10 +4,7 @@ import pandas as pd
 
 import mFinix.constants.constants as const
 from mFinix.constants.columns import ISIN, QUANTITY, SYMBOL, TOTAL_QUANTITY, TRADE_TYPE
-from mFinix.core.corporate_actions import (
-    add_corporate_actions_in_tradebook,
-    automatic_update_corporate_actions_data,
-)
+from mFinix.core.corporate_actions import add_corporate_actions_in_tradebook
 from mFinix.core.read_kite_data import read_tradebook_data
 
 

@@ -7,8 +7,11 @@ import panel as pn
 
 import mFinix.constants.columns as col
 import mFinix.constants.constants as const
-from mFinix.webapp.tab_stocks.corporate_events_manager.ipo_inputs_manager import CorporateEventHandler
 from mFinix.util import log
+from mFinix.webapp.tab_stocks.corporate_events_manager.ipo_inputs_manager import (
+    CorporateEventHandler,
+)
+
 
 class BuybackInputsManager(CorporateEventHandler):
     def show_layout(self) -> None:
@@ -33,7 +36,7 @@ class BuybackInputsManager(CorporateEventHandler):
             (self.transactions_data[col.SYMBOL] == symbol)
             & (self.transactions_data[col.TRADE_DATE] < event_date)
         ]
-        
+
         current_holding = 0
         if not applicable_trade_data.empty:
             current_holding = applicable_trade_data[col.TOTAL_QUANTITY].iloc[-1]
@@ -47,7 +50,7 @@ class BuybackInputsManager(CorporateEventHandler):
         data = {
             col.SYMBOL: symbol,
             col.TRADE_DATE: event_date,
-            col.QUANTITY: -float(qty), # Buyback reduces quantity
+            col.QUANTITY: -float(qty),  # Buyback reduces quantity
         }
 
         self.append_row_to_csv(Path(const.LOCAL_DATA_PATH / const.BUYBACK_CSV), data)

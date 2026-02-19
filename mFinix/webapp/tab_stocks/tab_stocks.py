@@ -9,6 +9,9 @@ import mFinix.constants.constants as const
 import mFinix.constants.panel_constants as pn_const
 import mFinix.webapp.webapp_constants as webapp_const
 from mFinix.util import log
+from mFinix.webapp.tab_stocks.auto_corporate_actions_manager import (
+    AutoCorporateActionsManager,
+)
 from mFinix.webapp.tab_stocks.event_entry_layout import EventDataManager
 from mFinix.webapp.tab_stocks.transactions_layout import TransactionsManager
 from mFinix.webapp.tab_stocks.utility import prepare_stocks_tab_data
@@ -40,6 +43,11 @@ class TabStocks:
 
         # initialize transactions manager
         self.transactions_manager = TransactionsManager(self.tab_data, self.tab_widgets)
+
+        # initialize auto corporate actions manager
+        self.auto_corp_manager = AutoCorporateActionsManager(
+            self.tab_data, self.tab_widgets
+        )
 
         # add callbacks
         self._add_callbacks()
@@ -187,6 +195,7 @@ class TabStocks:
         layout_mapping_dict = {
             webapp_const.StockMenuOptions.SHOW_PORTFOLIO: self._initial_layout,
             webapp_const.StockMenuOptions.SHOW_TRANSACTIONS: self._open_transactions_window,
+            webapp_const.StockMenuOptions.AUTO_CORP_ACTIONS: self._open_auto_corp_actions_window,
             webapp_const.StockMenuOptions.ADD_MANUAL_EVENTS: self._open_event_entry_window,
         }
 
@@ -214,6 +223,10 @@ class TabStocks:
         self.transactions_manager.initialize()
         self.transactions_manager.show_selected_transactions(selected_isin)
         self.layout.objects = [self._menu_layout] + self.transactions_manager.layout
+
+    def _open_auto_corp_actions_window(self):
+        self.auto_corp_manager.initialize()
+        self.layout.objects = [self._menu_layout] + self.auto_corp_manager.layout
 
     def _open_event_entry_window(self):
         self.event_manager.initialize()

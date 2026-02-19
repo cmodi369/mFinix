@@ -323,16 +323,22 @@ class YFinanceCorporateActionsExtractor:
         self._client = client or DefaultYFinanceClient()
         self._parser = parser or StockActionsParser()
 
-    def extract_corporate_actions(self, isin: str) -> StockActionsData:
+    def extract_corporate_actions(
+        self, isin: str, symbol: Optional[str] = None
+    ) -> StockActionsData:
         """Extract corporate actions for a stock.
 
         Retrieves actions data (dividends, stock splits) for the specified
-        stock ticker from yfinance.
+        stock ticker from yfinance. If ISIN lookup fails and a symbol is
+        provided, it falls back to fetching by 'Symbol.NS'.
 
         Parameters
         ----------
         isin : str
-            Stock ticker symbol (may include exchange suffix like ".NS")
+            Stock ISIN or ticker symbol (may include exchange suffix like ".NS")
+        symbol : Optional[str], optional
+            Optional symbol for fallback lookup. If provided, lookup will
+            be retried using f"{symbol}.NS" if ISIN fails.
 
         Returns
         -------
@@ -347,16 +353,33 @@ class YFinanceCorporateActionsExtractor:
         try:
             log.info("Extracting corporate actions for ISIN: %s", isin)
 
-            ticker_obj = self._client.get_ticker(isin)
-            actions_data = self._parser.parse(ticker_obj)
-
-            log.info(
-                "Successfully extracted corporate actions for %s",
-                isin,
-            )
-            return actions_data
+            try:
+                ticker_obj = self._client.get_ticker(isin)
+                actions_data = self._parser.parse(ticker_obj)
+                log.info("Successfully extracted corporate actions for %s", isin)
+                return actions_data
+            except (YFinanceQueryError, YFinanceCorporateActionsError) as exc:
+                if symbol:
+                    fallback_symbol = f"{symbol}.NS"
+                    log.info(
+                        "ISIN lookup failed for %s (%s). Attempting fallback to symbol: %s",
+                        isin,
+                        str(exc),
+                        fallback_symbol,
+                    )
+                    ticker_obj = self._client.get_ticker(fallback_symbol)
+                    actions_data = self._parser.parse(ticker_obj)
+                    log.info(
+                        "Successfully extracted corporate actions for %s using fallback %s",
+                        isin,
+                        fallback_symbol,
+                    )
+                    return actions_data
+                raise
 
         except YFinanceQueryError:
+            raise
+        except YFinanceCorporateActionsError:
             raise
         except Exception as exc:
             log.error(
@@ -479,7 +502,11 @@ class YFinancePriceExtractor:
 
         for t in tickers:
             if t in df.columns.get_level_values(0):
-                out[t] = df[t]["Close"].iloc[-1]
+                ticker_series = df[t]["Close"]
+                if not ticker_series.empty:
+                    out[t] = ticker_series.iloc[-1]
+                else:
+                    out[t] = np.nan
             else:
                 out[t] = np.nan
 
@@ -619,16 +646,21 @@ def fetch_stocks_price(
 
 def extract_corporate_actions(
     isin: str,
+    symbol: Optional[str] = None,
     client: Optional[YFinanceClientInterface] = None,
 ) -> StockActionsData:
     """Extract corporate actions data for a stock from yfinance.
 
     Retrieves dividend and stock split information for the specified stock.
+    Supports fallback to Symbol.NS if ISIN lookup fails.
 
     Parameters
     ----------
     isin : str
-        Stock ticker symbol (may include exchange suffix like ".NS")
+        Stock ISIN or ticker symbol (may include exchange suffix like ".NS")
+    symbol : Optional[str], optional
+        Optional symbol for fallback lookup. If provided, lookup will
+        be retried using f"{symbol}.NS" if ISIN fails.
     client : Optional[YFinanceClientInterface]
         yfinance client to use. If None, creates new client.
         If provided, caller is responsible for lifecycle management.
@@ -645,4 +677,4 @@ def extract_corporate_actions(
 
     """
     extractor = YFinanceCorporateActionsExtractor(client=client)
-    return extractor.extract_corporate_actions(isin)
+    return extractor.extract_corporate_actions(isin, symbol=symbol)

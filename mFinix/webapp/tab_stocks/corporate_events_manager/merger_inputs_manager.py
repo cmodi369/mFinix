@@ -7,8 +7,11 @@ import panel as pn
 
 import mFinix.constants.columns as col
 import mFinix.constants.constants as const
-from mFinix.webapp.tab_stocks.corporate_events_manager.ipo_inputs_manager import CorporateEventHandler
 from mFinix.util import log
+from mFinix.webapp.tab_stocks.corporate_events_manager.ipo_inputs_manager import (
+    CorporateEventHandler,
+)
+
 
 class MergerInputsManager(CorporateEventHandler):
     def show_layout(self) -> None:
