@@ -140,25 +140,9 @@ class AutoCorporateActionsManager:
 
     @property
     def layout(self) -> list:
-        """Return the layout components for the stocks tab."""
+        """Return the layout components for the modal or inline display."""
         return [
             pn.Column(
-                pn.pane.Markdown(
-                    "### ⚡ Auto Corporate Actions",
-                    styles={
-                        "font-size": "1.2rem",
-                        "font-weight": "600",
-                        "color": "#2c3e50",
-                    },
-                ),
-                pn.pane.Markdown(
-                    "Fetch and review corporate actions before applying them to your portfolio.",
-                    styles={
-                        "color": "var(--neutral-foreground-hint)",
-                        "font-size": "0.9rem",
-                        "margin-bottom": "10px",
-                    },
-                ),
                 # Source selection
                 pn.Row(
                     pn.Column(
@@ -194,7 +178,7 @@ class AutoCorporateActionsManager:
                         "margin-top": "10px",
                     },
                 ),
-                styles=webapp_const.UIStyles.CARD_STYLE,
+                sizing_mode="stretch_width",
             )
         ]
 

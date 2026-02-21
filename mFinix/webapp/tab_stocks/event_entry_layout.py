@@ -113,20 +113,13 @@ class EventDataManager:
 
     @property
     def layout(self):
+        """Return the layout components for the modal or inline display."""
         return [
             pn.Column(
-                pn.pane.Markdown(
-                    "### Add Event",
-                    styles={
-                        "font-size": "1.2rem",
-                        "font-weight": "600",
-                        "color": "#2c3e50",
-                    },
-                ),
                 pn.Row(self.widgets["stock_select"], self.widgets["isin_input"]),
                 self.widgets["events_menu"],
                 self._layout,
-                styles=webapp_const.UIStyles.CARD_STYLE,
+                sizing_mode="stretch_width",
             )
         ]
 

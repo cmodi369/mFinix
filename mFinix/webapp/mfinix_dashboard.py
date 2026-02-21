@@ -27,13 +27,6 @@ class Mfinix:
         self.data = {}
         self.widgets = {}
 
-        # initialize tabs
-        self.tabs = [
-            TabPortfolioSummary(self.data),
-            TabStocks(self.data, self.widgets),
-            TabMutualFunds(self.data),
-        ]
-
         self.dashboard = pn.template.FastListTemplate(
             title="Multi Asset Finance Explorer",
             header_background="#2F4F4F",
@@ -43,6 +36,13 @@ class Mfinix:
             busy_indicator=None,
             main_max_width="95%",
         )
+
+        # initialize tabs (after dashboard so TabStocks can access the modal)
+        self.tabs = [
+            TabPortfolioSummary(self.data),
+            TabStocks(self.data, self.widgets, self.dashboard),
+            TabMutualFunds(self.data),
+        ]
 
         self._create_layout()
 

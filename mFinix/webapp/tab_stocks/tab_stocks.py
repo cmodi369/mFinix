@@ -9,6 +9,7 @@ import mFinix.constants.constants as const
 import mFinix.constants.panel_constants as pn_const
 import mFinix.webapp.webapp_constants as webapp_const
 from mFinix.util import log
+from mFinix.webapp.panel_modal import PanelModal
 from mFinix.webapp.tab_stocks.auto_corporate_actions_manager import (
     AutoCorporateActionsManager,
 )
@@ -23,8 +24,10 @@ class TabStocks:
 
     ICON: str = "clipboard-data"
 
-    def __init__(self, data: dict[str, Any], widgets: dict[str, Any]):
+    def __init__(self, data: dict[str, Any], widgets: dict[str, Any], dashboard=None):
         self.data = data
+        self.dashboard = dashboard
+        self.panel_modal = PanelModal(dashboard) if dashboard else None
         self.widgets = widgets
 
         if "stocks_tab" not in self.data:
@@ -35,8 +38,8 @@ class TabStocks:
             self.tab_data.update(prepare_stocks_tab_data())
 
         # initialize tab widgets
-        self.tab_widgets = self.widgets["stocks_tab"] = {}
         self.tab_widgets = self._initialize_widgets()
+        self.widgets["stocks_tab"] = self.tab_widgets
 
         # initialize event data manager
         self.event_manager = EventDataManager(self.tab_data, self.tab_widgets)
@@ -119,7 +122,6 @@ class TabStocks:
         )
 
         col_name_mapping = {
-            col.ISIN: "Symbol",
             col.SYMBOL: "Stock Name",
             col.TOTAL_QUANTITY: "Quantity",
             col.AVG_BUY_PRICE: "Buy Avg.",
@@ -222,15 +224,26 @@ class TabStocks:
     def _open_transactions_window(self, selected_isin: Optional[str] = None):
         self.transactions_manager.initialize()
         self.transactions_manager.show_selected_transactions(selected_isin)
-        self.layout.objects = [self._menu_layout] + self.transactions_manager.layout
+        if self.panel_modal:
+            self.panel_modal.open(self.transactions_manager.layout, "📋 Transactions")
+        else:
+            self.layout.objects = [self._menu_layout] + self.transactions_manager.layout
 
     def _open_auto_corp_actions_window(self):
         self.auto_corp_manager.initialize()
-        self.layout.objects = [self._menu_layout] + self.auto_corp_manager.layout
+        if self.panel_modal:
+            self.panel_modal.open(
+                self.auto_corp_manager.layout, "⚡ Auto Corporate Actions"
+            )
+        else:
+            self.layout.objects = [self._menu_layout] + self.auto_corp_manager.layout
 
     def _open_event_entry_window(self):
         self.event_manager.initialize()
-        self.layout.objects = [self._menu_layout] + self.event_manager.layout
+        if self.panel_modal:
+            self.panel_modal.open(self.event_manager.layout, "✏️ Add Manual Events")
+        else:
+            self.layout.objects = [self._menu_layout] + self.event_manager.layout
 
     def _table_click_cb(self, event):
         selected_isin = self.tab_data["stocks_xirr_data"][

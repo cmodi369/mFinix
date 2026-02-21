@@ -9,13 +9,14 @@ from mFinix.core.xirr_calculation import (
 
 
 def run_once(method):
-    """Decorator to ensure a method can only be executed once."""
-    method._has_run = False
+    """Decorator to ensure a method can only be executed once per instance."""
 
     def wrapper(self, *args, **kwargs):
-        if method._has_run:
+        # Use an instance-specific attribute to track if the method has run
+        attr_name = f"_has_run_{method.__name__}"
+        if getattr(self, attr_name, False):
             return
-        method._has_run = True
+        setattr(self, attr_name, True)
         return method(self, *args, **kwargs)
 
     return wrapper
