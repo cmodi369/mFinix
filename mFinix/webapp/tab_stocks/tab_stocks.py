@@ -122,6 +122,7 @@ class TabStocks:
         )
 
         col_name_mapping = {
+            col.STATUS_ICON: "Status",
             col.SYMBOL: "Stock Name",
             col.TOTAL_QUANTITY: "Quantity",
             col.AVG_BUY_PRICE: "Buy Avg.",
@@ -146,6 +147,10 @@ class TabStocks:
                 col.BUY_VALUE: NumberFormatter(format="0,0.00"),
                 col.PRESENT_VALUE: NumberFormatter(format="0,0.00"),
                 col.PNL: NumberFormatter(format="0,0.00"),
+                col.STATUS_ICON: {
+                    "type": "html",
+                    "fieldName": col.STATUS_ICON,
+                },
             },
             buttons={
                 "open": "<i class='fa fa-list-alt'></i>",
@@ -156,6 +161,7 @@ class TabStocks:
             theme=UIStyles.TABLE_THEME,
             configuration={
                 "columnHeaderVertAlign": "middle",
+                "tooltipGenerationMode": "hover",
             },
             text_align={
                 col.TOTAL_QUANTITY: "right",
@@ -170,18 +176,35 @@ class TabStocks:
             row_height=UIStyles.TABLE_ROW_HEIGHT,
             show_index=False,
             sizing_mode="stretch_width",
+            widths={col.STATUS_ICON: 60},
+        )
+
+        # Summary Badge
+        discrepancy_count = self.tab_data["stocks_xirr_data"][col.IS_DISCREPANCY].sum()
+        widgets["discrepancy_badge"] = pn.pane.HTML(
+            (
+                f"""
+            <div style="background-color: {'#e74c3c' if discrepancy_count > 0 else '#2ecc71'}; 
+                        color: white; padding: 5px 15px; border-radius: 20px; 
+                        font-weight: bold; display: flex; align-items: center; gap: 8px;">
+                <i class="fa fa-{'exclamation-triangle' if discrepancy_count > 0 else 'check-circle'}"></i>
+                {discrepancy_count} Discrepancies Found
+            </div>
+            """
+                if discrepancy_count > 0
+                else ""
+            ),
+            align="center",
         )
 
         # add styles
         widgets["stocks_xirr_table"].style.apply(
-            self._apply_table_row_color,
-            props="color:white;background-color:#e74c3c",
-            axis=1,
-            subset=[col.TOTAL_QUANTITY],
-        )
-        widgets["stocks_xirr_table"].style.apply(
             self._apply_pnl_color,
             subset=[col.PNL, col.PNL_PERCENTAGE, col.XIRR],
+        )
+        widgets["stocks_xirr_table"].style.apply(
+            self._apply_discrepancy_row_style,
+            axis=1,
         )
 
         return widgets
@@ -204,9 +227,13 @@ class TabStocks:
         layout_mapping_dict[event.new]()
 
     @staticmethod
-    def _apply_table_row_color(val, props=""):
-        """Function to highlight rows with negative values in the 'quantity' column"""
-        return np.where(val < 0, props, "")
+    def _apply_discrepancy_row_style(row):
+        """Highlight rows with discrepancies"""
+        if row[col.IS_DISCREPANCY]:
+            return [
+                "background-color: rgba(231, 76, 60, 0.15); font-weight: 500"
+            ] * len(row)
+        return [""] * len(row)
 
     @staticmethod
     def _apply_pnl_color(val):
@@ -279,13 +306,19 @@ class TabStocks:
 
         # Holdings Card
         holdings_card = pn.Column(
-            pn.pane.Markdown(
-                "### Holdings",
-                styles={
-                    "font-size": "1.2rem",
-                    "font-weight": "600",
-                    "color": "#2c3e50",
-                },
+            pn.Row(
+                pn.pane.Markdown(
+                    "### Holdings",
+                    styles={
+                        "font-size": "1.2rem",
+                        "font-weight": "600",
+                        "color": "#2c3e50",
+                    },
+                ),
+                pn.Spacer(),
+                self.tab_widgets["discrepancy_badge"],
+                sizing_mode="stretch_width",
+                styles={"align-items": "center", "gap": "15px"},
             ),
             self.tab_widgets["stocks_xirr_table"],
             styles=webapp_const.UIStyles.CARD_STYLE,

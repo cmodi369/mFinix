@@ -74,7 +74,11 @@ class TransactionsManager:
     def layout(self):
         """Return the layout components for the modal or inline display."""
         return [
-            pn.Column(self.widgets["transactions_table"], sizing_mode="stretch_width")
+            pn.Column(
+                self.widgets.get("discrepancy_alert", pn.Spacer(height=0)),
+                self.widgets["transactions_table"],
+                sizing_mode="stretch_width",
+            )
         ]
 
     def _add_callbacks(self):
@@ -100,12 +104,35 @@ class TransactionsManager:
     def show_selected_transactions(self, selected_isin: str):
         log.info("Open transactions table for %s.", selected_isin)
 
+        stocks_xirr_data = self.data_dict["stocks_xirr_data"]
+        discrepancy_info = None
+
         if selected_isin is None:
             transactions_data = self.data_dict["transactions_data"]
         else:
             transactions_data = self.data_dict["transactions_data"][
                 self.data_dict["transactions_data"][col.ISIN] == selected_isin
             ].reset_index(drop=True)
+
+            # Check for discrepancy
+            stock_row = stocks_xirr_data[stocks_xirr_data[col.ISIN] == selected_isin]
+            if not stock_row.empty and stock_row[col.IS_DISCREPANCY].iloc[0]:
+                discrepancy_info = {
+                    "calculated": stock_row[col.TOTAL_QUANTITY].iloc[0],
+                    "broker": stock_row[col.HOLDING_QUANTITY].iloc[0],
+                }
+
+        # Update alert
+        if discrepancy_info:
+            self.widgets["discrepancy_alert"] = pn.pane.Alert(
+                f"### ⚠️ Holding Discrepancy Detected\n"
+                f"The calculated quantity based on your transactions (**{discrepancy_info['calculated']}**) "
+                f"does not match the actual quantity reported by the broker (**{discrepancy_info['broker']}**). "
+                f"Please manually verify and add any missing transactions.",
+                alert_type="danger",
+            )
+        else:
+            self.widgets["discrepancy_alert"] = pn.Spacer(height=0)
 
         # update transactions data in table
         self.widgets["transactions_table"].value = transactions_data[self._columns]

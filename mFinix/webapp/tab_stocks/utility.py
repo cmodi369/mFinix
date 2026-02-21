@@ -49,6 +49,33 @@ def prepare_stocks_tab_data() -> dict:
     portfolio_value = calculate_portfolio_value(stocks_data["stocks_xirr_data"])
     portfolio_xirr = calculate_portfolio_xirr_from_ledger(ledger_df, portfolio_value)
 
+    # Merge holding quantity and identify discrepancies
+    stocks_xirr_df = stocks_data["stocks_xirr_data"]
+    if not equity_holdings.empty:
+        # Merge by ISIN
+        holding_subset = equity_holdings[[col.ISIN, col.HOLDING_QUANTITY]].copy()
+        stocks_xirr_df = stocks_xirr_df.merge(
+            holding_subset, on=col.ISIN, how="left"
+        ).fillna({col.HOLDING_QUANTITY: 0})
+
+        # Flag discrepancies
+        stocks_xirr_df[col.IS_DISCREPANCY] = (
+            stocks_xirr_df[col.TOTAL_QUANTITY] != stocks_xirr_df[col.HOLDING_QUANTITY]
+        )
+    else:
+        stocks_xirr_df[col.HOLDING_QUANTITY] = 0
+        stocks_xirr_df[col.IS_DISCREPANCY] = stocks_xirr_df[col.TOTAL_QUANTITY] != 0
+
+    # Add HTML icons for advanced visualization
+    def get_status_icon(row):
+        if row[col.IS_DISCREPANCY]:
+            return f'<i class="fa fa-exclamation-triangle" style="color: #e74c3c;" title="Discrepancy: Expected {row[col.TOTAL_QUANTITY]} but broker says {row[col.HOLDING_QUANTITY]}"></i>'
+        return '<i class="fa fa-check-circle" style="color: #2ecc71;" title="Quantity matches broker holdings"></i>'
+
+    stocks_xirr_df[col.STATUS_ICON] = stocks_xirr_df.apply(get_status_icon, axis=1)
+
+    stocks_data["stocks_xirr_data"] = stocks_xirr_df
+
     return {
         "transactions_data": transactions_data,
         "equity_holdings": equity_holdings,

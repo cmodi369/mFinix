@@ -165,7 +165,7 @@ class _HoldingProcessor:
         column_mapping = {
             "Symbol": col.SYMBOL,
             "ISIN": col.ISIN,
-            "Quantity Available": col.QUANTITY,
+            "Quantity Available": col.HOLDING_QUANTITY,
         }
         holdings_df = holdings_df.rename(columns=column_mapping)
 
