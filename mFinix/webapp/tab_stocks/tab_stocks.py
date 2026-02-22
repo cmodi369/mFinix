@@ -14,8 +14,12 @@ from mFinix.webapp.tab_stocks.auto_corporate_actions_manager import (
     AutoCorporateActionsManager,
 )
 from mFinix.webapp.tab_stocks.event_entry_layout import EventDataManager
+from mFinix.webapp.tab_stocks.manual_data_fetch_manager import ManualDataFetchManager
 from mFinix.webapp.tab_stocks.transactions_layout import TransactionsManager
-from mFinix.webapp.tab_stocks.utility import prepare_stocks_tab_data
+from mFinix.webapp.tab_stocks.utility import (
+    check_data_files_up_to_date,
+    prepare_stocks_tab_data,
+)
 from mFinix.webapp.webapp_constants import UIStyles
 
 
@@ -52,13 +56,24 @@ class TabStocks:
             self.tab_data, self.tab_widgets
         )
 
+        # initialize manual data fetch manager
+        self.manual_data_manager = ManualDataFetchManager(
+            self.tab_data, self.tab_widgets, self._refresh_tables
+        )
+
         # add callbacks
         self._add_callbacks()
 
         # initialize tab layout
         self._menu_layout = pn.Row(
             self.tab_widgets["tools_menu"],
-            styles={"border-bottom": "1px solid black"},
+            pn.Spacer(sizing_mode="stretch_width"),
+            self.tab_widgets["update_data_btn"],
+            styles={
+                "border-bottom": "1px solid black",
+                "padding-bottom": "10px",
+                "align-items": "center",
+            },
             sizing_mode="stretch_width",
         )
         self.layout = pn.Column()
@@ -78,6 +93,20 @@ class TabStocks:
             button_type="light",
             width=200,
             margin=0,
+        )
+
+        is_up_to_date = check_data_files_up_to_date()
+        btn_type = "primary" if is_up_to_date else "warning"
+        icon = "cloud-check" if is_up_to_date else "exclamation-triangle"
+        name = "Update Data" if is_up_to_date else "Data Outdated - Update Now"
+
+        widgets["update_data_btn"] = pn.widgets.Button(
+            name=name,
+            icon=icon,
+            button_type=btn_type,
+            width=250,
+            margin=0,
+            styles={"font-weight": "bold"},
         )
 
         widgets["portfolio_xirr_text"] = pn.indicators.Number(
@@ -214,6 +243,9 @@ class TabStocks:
 
         self.tab_widgets["stocks_xirr_table"].on_click(self._table_click_cb)
         self.tab_widgets["tools_menu"].on_click(self._open_selected_layout)
+        self.tab_widgets["update_data_btn"].on_click(
+            self._open_manual_data_fetch_window
+        )
 
     def _open_selected_layout(self, event):
         """Open Selected Layout"""
@@ -281,6 +313,55 @@ class TabStocks:
 
         elif event.column == "edit":
             self._open_event_entry_window()
+
+    def _open_manual_data_fetch_window(self, event=None):
+        self.manual_data_manager.initialize()
+        if self.panel_modal:
+            self.panel_modal.open(
+                self.manual_data_manager.layout, "📥 Update Data from Zerodha"
+            )
+        else:
+            self.layout.objects = [self._menu_layout] + self.manual_data_manager.layout
+
+    def _refresh_tables(self):
+        """Update tables and indicators with new data."""
+        self.tab_widgets["portfolio_xirr_text"].value = self.tab_data["portfolio_xirr"]
+
+        portfolio_value = self.tab_data["portfolio_value"]
+        if portfolio_value < 100000:
+            display_value = portfolio_value / 1000
+            format_str = "₹ {value:.2f} K"
+        else:
+            display_value = portfolio_value / 100000
+            format_str = "₹ {value:.2f} L"
+
+        self.tab_widgets["portfolio_value_text"].value = display_value
+        self.tab_widgets["portfolio_value_text"].format = format_str
+
+        # Tabulator requires .value update
+        self.tab_widgets["stocks_xirr_table"].value = self.tab_data["stocks_xirr_data"]
+
+        # Discrepancy badge update
+        discrepancy_count = self.tab_data["stocks_xirr_data"][col.IS_DISCREPANCY].sum()
+        self.tab_widgets["discrepancy_badge"].object = (
+            f"""
+            <div style="background-color: {'#e74c3c' if discrepancy_count > 0 else '#2ecc71'}; 
+                        color: white; padding: 5px 15px; border-radius: 20px; 
+                        font-weight: bold; display: flex; align-items: center; gap: 8px;">
+                <i class="fa fa-{'exclamation-triangle' if discrepancy_count > 0 else 'check-circle'}"></i>
+                {discrepancy_count} Discrepancies Found
+            </div>
+            """
+            if discrepancy_count > 0
+            else ""
+        )
+
+        # update button state if data is now up to date
+        is_up_to_date = check_data_files_up_to_date()
+        if is_up_to_date:
+            self.tab_widgets["update_data_btn"].name = "Update Data"
+            self.tab_widgets["update_data_btn"].button_type = "primary"
+            self.tab_widgets["update_data_btn"].icon = "cloud-check"
 
     def _initial_layout(self):
         """Initialize tab layout"""
