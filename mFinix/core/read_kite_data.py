@@ -26,6 +26,7 @@ import pandas as pd
 
 import mFinix.constants.columns as col
 import mFinix.constants.constants as const
+from mFinix.util import log
 
 
 class _TradeBookProcessor:

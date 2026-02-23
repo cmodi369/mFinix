@@ -18,6 +18,7 @@ from mFinix.webapp.tab_stocks.utility import (
     prepare_stocks_tab_data_progressive,
     run_once,
 )
+import mFinix.core.read_kite_data as rkd
 
 
 class ManualDataFetchManager:
@@ -83,7 +84,7 @@ class ManualDataFetchManager:
             # Check master first
             p = master_path / const.HOLDINGS_MASTER
             if not p.exists():
-                p = docs_path / const.HOLD_EXCEL_ZERODHA  # old location
+                p = docs_path / const.HOLDING_EXCEL_ZERODHA  # old location
 
             if p.exists():
                 return datetime.fromtimestamp(p.stat().st_mtime).strftime(
@@ -163,7 +164,7 @@ class ManualDataFetchManager:
                     "net_balance": {"type": "money"},
                 },
                 header_filters=True,
-                width=1150,
+                width=900,
                 height=600,
             )
 
