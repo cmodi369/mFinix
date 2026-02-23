@@ -119,6 +119,16 @@ class UIStyles:
         font-size: 1.8rem;
         font-weight: 700;
     }
+    .pn-modal-content, .pn-modal-container, .pn-modal-area, .bk-ModalContainer, #pn-ModalContainer {
+        max-width: none !important;
+        width: auto !important;
+        min-width: 80% !important;
+        padding: 0 !important;
+    }
+    .bk-root .bk-panel-models-layout-Column {
+        width: 100% !important;
+        max-width: none !important;
+    }
     """
 
 

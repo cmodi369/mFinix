@@ -58,7 +58,7 @@ class TabStocks:
 
         # initialize manual data fetch manager
         self.manual_data_manager = ManualDataFetchManager(
-            self.tab_data, self.tab_widgets, self._refresh_tables
+            self.tab_data, self.tab_widgets, self._refresh_tables, self.panel_modal
         )
 
         # add callbacks
@@ -176,10 +176,7 @@ class TabStocks:
                 col.BUY_VALUE: NumberFormatter(format="0,0.00"),
                 col.PRESENT_VALUE: NumberFormatter(format="0,0.00"),
                 col.PNL: NumberFormatter(format="0,0.00"),
-                col.STATUS_ICON: {
-                    "type": "html",
-                    "fieldName": col.STATUS_ICON,
-                },
+                col.STATUS_ICON: "html",
             },
             buttons={
                 "open": "<i class='fa fa-list-alt'></i>",
@@ -338,8 +335,22 @@ class TabStocks:
         self.tab_widgets["portfolio_value_text"].value = display_value
         self.tab_widgets["portfolio_value_text"].format = format_str
 
-        # Tabulator requires .value update
-        self.tab_widgets["stocks_xirr_table"].value = self.tab_data["stocks_xirr_data"]
+        # Tabulator requires .value update with scoped columns
+        display_columns = [
+            col.STATUS_ICON,
+            col.SYMBOL,
+            col.TOTAL_QUANTITY,
+            col.AVG_BUY_PRICE,
+            col.BUY_VALUE,
+            col.CURRENT_PRICE,
+            col.PRESENT_VALUE,
+            col.PNL,
+            col.PNL_PERCENTAGE,
+            col.XIRR,
+        ]
+        self.tab_widgets["stocks_xirr_table"].value = self.tab_data["stocks_xirr_data"][
+            display_columns
+        ]
 
         # Discrepancy badge update
         discrepancy_count = self.tab_data["stocks_xirr_data"][col.IS_DISCREPANCY].sum()
