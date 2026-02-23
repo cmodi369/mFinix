@@ -10,7 +10,7 @@ import param
 
 import mFinix.constants.columns as col
 import mFinix.constants.constants as const
-import mFinix.core.read_kite_data as rkd
+from mFinix.core.master_source_data_manager import MasterSourceDataManager
 from mFinix.util import log
 from mFinix.webapp.components.progress_logger import ProgressLogger
 from mFinix.webapp.components.wizard_step_header import WizardStepHeader
@@ -30,6 +30,7 @@ class ManualDataFetchManager:
         self.panel_modal = panel_modal
 
         # Components
+        self.data_manager = MasterSourceDataManager()
         self.wizard_header = WizardStepHeader(
             steps=["Holdings", "Ledger", "Tradebook"], active_step=0
         )
@@ -76,20 +77,40 @@ class ManualDataFetchManager:
     def _get_file_timestamp(self, file_type: str) -> str:
         """Get formatting timestamp for the appropriate file type."""
         docs_path = const.DOCS_PATH
+        master_path = const.DOCS_MASTER_PATH
+
         if file_type == "Holdings":
-            p = docs_path / const.HOLDING_EXCEL_ZERODHA
+            # Check master first
+            p = master_path / const.HOLDINGS_MASTER
+            if not p.exists():
+                p = docs_path / const.HOLD_EXCEL_ZERODHA  # old location
+
             if p.exists():
                 return datetime.fromtimestamp(p.stat().st_mtime).strftime(
                     "%Y-%m-%d %H:%M:%S"
                 )
+
         elif file_type == "Ledger":
+            p = master_path / const.LEDGER_MASTER
+            if p.exists():
+                return datetime.fromtimestamp(p.stat().st_mtime).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+
             files = list(docs_path.glob(f"{const.LEDGER_ID_ZERODHA}*.csv"))
             if files:
                 latest = max(files, key=lambda f: f.stat().st_mtime)
                 return datetime.fromtimestamp(latest.stat().st_mtime).strftime(
                     "%Y-%m-%d %H:%M:%S"
                 )
+
         elif file_type == "Tradebook":
+            p = master_path / const.TRADEBOOK_MASTER
+            if p.exists():
+                return datetime.fromtimestamp(p.stat().st_mtime).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+
             files = list(docs_path.glob(f"{const.TRADEBOOK_ID_ZERODHA}*.csv"))
             if files:
                 latest = max(files, key=lambda f: f.stat().st_mtime)
@@ -141,6 +162,7 @@ class ManualDataFetchManager:
                     "credit": {"type": "money"},
                     "net_balance": {"type": "money"},
                 },
+                header_filters=True,
                 width=1150,
                 height=600,
             )
@@ -295,124 +317,55 @@ class ManualDataFetchManager:
 
         self.navigation_row.objects = nav_buttons
 
-    def _merge_and_save_data(
-        self, temp_file_path: Path, data_type: str, timestamp_str: str
-    ) -> Path:
-        """Merge newly uploaded CSV with existing CSVs, remove duplicates, and archive old files."""
-        docs_path = const.DOCS_PATH
-        archive_path = docs_path / "archive"
-        archive_path.mkdir(exist_ok=True)
-
-        if data_type == "Ledger":
-            file_prefix = const.LEDGER_ID_ZERODHA
-            subset_cols = [
-                "particulars",
-                "posting_date",
-                "cost_center",
-                "voucher_type",
-                "debit",
-                "credit",
-                "net_balance",
-            ]
-            date_col = "posting_date"
-        elif data_type == "Tradebook":
-            file_prefix = const.TRADEBOOK_ID_ZERODHA
-            subset_cols = ["trade_id", "order_id", "order_execution_time"]
-            date_col = "trade_date"
-
-        new_filename = f"{file_prefix}_{timestamp_str}.csv"
-        final_file_path = docs_path / new_filename
-
-        try:
-            # Load new data
-            df_new = pd.read_csv(temp_file_path)
-
-            # Find existing files
-            existing_files = list(docs_path.glob(f"{file_prefix}*.csv"))
-            dfs_to_concat = [df_new]
-
-            for f in existing_files:
-                # Need to read and concatenate
-                try:
-                    df_existing = pd.read_csv(f)
-                    dfs_to_concat.append(df_existing)
-                except Exception as e:
-                    log.error(f"Failed to read existing file for merge {f}: {e}")
-
-            if len(dfs_to_concat) > 1:
-                # Combine and deduplicate
-                df_combined = pd.concat(dfs_to_concat, ignore_index=True)
-                # For safety, ensure date column is somewhat parsable for sorting if we want to sort,
-                # but drop_duplicates will keep the first occurrence usually.
-                # Let's drop duplicates cleanly
-                df_combined = df_combined.drop_duplicates(
-                    subset=subset_cols, keep="last"
-                )
-
-                # Try sorting by date if exists
-                if date_col in df_combined.columns:
-                    try:
-                        df_combined[date_col] = pd.to_datetime(
-                            df_combined[date_col], format="mixed", dayfirst=False
-                        )
-                        df_combined = df_combined.sort_values(by=date_col)
-                        # We might need to keep it as string if the original was string, read_csv will handle it
-                    except Exception as e:
-                        log.warning(f"Could not sort merged data by date: {e}")
-
-                # Save merged data
-                df_combined.to_csv(final_file_path, index=False)
-            else:
-                # Just rename the temp file to final destination if no existing files
-                shutil.copy(temp_file_path, final_file_path)
-
-            # Move all existing matched files to archive
-            for f in existing_files:
-                archive_file_path = archive_path / f.name
-                # Avoid moving the file we just created if glob picked it up (shouldn't if temp is named differently, but still)
-                if f != final_file_path and f != temp_file_path:
-                    try:
-                        os.rename(f, archive_file_path)
-                    except Exception as e:
-                        log.error(f"Failed to archive old file {f}: {e}")
-
-            return final_file_path
-
-        except Exception as e:
-            log.error(f"Data merge pipeline failed: {traceback.format_exc()}")
-            # Fallback: Just save the new file
-            return final_file_path
+    # Removed _merge_and_save_data as it is now handled by MasterSourceDataManager
 
     def _save_file(self, step_idx):
         file_input = self.file_inputs[step_idx]
         if file_input.value is not None:
-            docs_path = const.DOCS_PATH
-            docs_path.mkdir(parents=True, exist_ok=True)
-            timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S")
+            source = "zerodha"
 
             if step_idx == 0:
-                filename = const.HOLDING_EXCEL_ZERODHA
-                file_path = docs_path / filename
-                file_input.save(str(file_path))
+                # Holdings - Source specific Excel
+                raw_path = self.data_manager.save_raw_file(
+                    file_input.value, source, const.HOLDING_EXCEL_ZERODHA
+                )
+                # Master holdings is usually just overwritten for Zerodha as it's a full state
+                self.data_manager.merge_and_update_master(
+                    raw_path, const.HOLDINGS_MASTER, subset_cols=["ISIN", "Symbol"]
+                )
             elif step_idx == 1:
                 # Ledger
-                temp_filename = f"temp_ledger_{timestamp_str}.csv"
-                temp_file_path = docs_path / "archive" / temp_filename
-                (docs_path / "archive").mkdir(exist_ok=True)
-                file_input.save(str(temp_file_path))
-
-                # Run Merge Pipeline
-                self._merge_and_save_data(temp_file_path, "Ledger", timestamp_str)
+                raw_path = self.data_manager.save_raw_file(
+                    file_input.value, source, "ledger.csv"
+                )
+                subset_cols = [
+                    "particulars",
+                    "posting_date",
+                    "cost_center",
+                    "voucher_type",
+                    "debit",
+                    "credit",
+                    "net_balance",
+                ]
+                self.data_manager.merge_and_update_master(
+                    raw_path,
+                    const.LEDGER_MASTER,
+                    subset_cols=subset_cols,
+                    date_col="posting_date",
+                )
 
             elif step_idx == 2:
                 # Tradebook
-                temp_filename = f"temp_tradebook_{timestamp_str}.csv"
-                temp_file_path = docs_path / "archive" / temp_filename
-                (docs_path / "archive").mkdir(exist_ok=True)
-                file_input.save(str(temp_file_path))
-
-                # Run Merge Pipeline
-                self._merge_and_save_data(temp_file_path, "Tradebook", timestamp_str)
+                raw_path = self.data_manager.save_raw_file(
+                    file_input.value, source, "tradebook.csv"
+                )
+                subset_cols = ["trade_id", "order_id", "order_execution_time"]
+                self.data_manager.merge_and_update_master(
+                    raw_path,
+                    const.TRADEBOOK_MASTER,
+                    subset_cols=subset_cols,
+                    date_col="trade_date",
+                )
 
             # Reset file input to prevent re-saving
             file_input.value = None

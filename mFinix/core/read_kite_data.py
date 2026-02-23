@@ -257,23 +257,24 @@ class KiteDataReader:
     def read_tradebook(self) -> pd.DataFrame:
         """Read and process tradebook data from Kite CSV files.
 
-        Reads all tradebook CSV files matching the Zerodha tradebook identifier,
-        combines them, removes duplicates, and applies standardized processing.
-
-        Returns
-        -------
-        pd.DataFrame
-            Processed tradebook data with calculated columns.
-
+        Reads the master tradebook file if it exists, otherwise falls back
+        to reading all tradebook CSV files in the docs directory.
         """
-        ret_data = pd.DataFrame()
-        for file in self.docs_path.glob(f"{const.TRADEBOOK_ID_ZERODHA}*"):
-            ret_data = pd.concat([ret_data, pd.read_csv(file)])
+        master_file = const.DOCS_MASTER_PATH / const.TRADEBOOK_MASTER
+
+        if master_file.is_file():
+            log.info(f"Reading tradebook from master file: {master_file}")
+            ret_data = pd.read_csv(master_file)
+        else:
+            log.info(f"Master tradebook not found, searching in {self.docs_path}")
+            ret_data = pd.DataFrame()
+            for file in self.docs_path.glob(f"{const.TRADEBOOK_ID_ZERODHA}*"):
+                if file.is_file():
+                    ret_data = pd.concat([ret_data, pd.read_csv(file)])
 
         if ret_data.empty:
             raise FileNotFoundError(
-                f"No tradebook files found in {self.docs_path} "
-                f"starting with '{const.TRADEBOOK_ID_ZERODHA}'"
+                f"No tradebook files found in {self.docs_path} or {const.DOCS_MASTER_PATH}"
             )
 
         return _TradeBookProcessor.process(ret_data)
@@ -281,43 +282,53 @@ class KiteDataReader:
     def read_ledger(self) -> pd.DataFrame:
         """Read and process ledger data from Kite CSV file.
 
-        Reads the latest ledger CSV file matching the Zerodha ledger identifier
-        and applies standardized processing.
-
-        Returns
-        -------
-        pd.DataFrame
-            Processed ledger data with formatted datetime columns.
-
+        Reads the master ledger file if it exists, otherwise falls back
+        to the latest ledger file in the docs directory.
         """
-        files = [
-            file
-            for file in self.docs_path.glob(f"{const.LEDGER_ID_ZERODHA}*.csv")
-            if file.is_file()
-        ]
+        master_file = const.DOCS_MASTER_PATH / const.LEDGER_MASTER
 
-        if not files:
-            raise FileNotFoundError(
-                f"No ledger files found in {self.docs_path} "
-                f"matching pattern '{const.LEDGER_ID_ZERODHA}*.csv'"
-            )
+        if master_file.is_file():
+            log.info(f"Reading ledger from master file: {master_file}")
+            ledger_data = pd.read_csv(master_file)
+        else:
+            log.info(f"Master ledger not found, searching in {self.docs_path}")
+            files = [
+                file
+                for file in self.docs_path.glob(f"{const.LEDGER_ID_ZERODHA}*.csv")
+                if file.is_file()
+            ]
 
-        latest_file = max(files, key=lambda f: f.stat().st_mtime)
-        ledger_data = pd.read_csv(latest_file)
+            if not files:
+                raise FileNotFoundError(
+                    f"No ledger files found in {self.docs_path} or {const.DOCS_MASTER_PATH}"
+                )
+
+            latest_file = max(files, key=lambda f: f.stat().st_mtime)
+            ledger_data = pd.read_csv(latest_file)
 
         return _LedgerProcessor.process(ledger_data)
 
     def read_holdings(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Read and process holdings data from Kite Excel file.
 
-        Reads the holdings Excel file from the configured directory, extracts
-        separate data for Equity and Mutual Funds, and applies standardized processing.
-
+        Reads the master holdings file if it exists, otherwise falls back
+        to the original holdings file.
         """
-        holdings_file = self.docs_path / const.HOLDING_EXCEL_ZERODHA
+        master_file = const.DOCS_MASTER_PATH / const.HOLDINGS_MASTER
+        holdings_file = (
+            master_file
+            if master_file.is_file()
+            else (self.docs_path / const.HOLDING_EXCEL_ZERODHA)
+        )
+
+        if not holdings_file.is_file():
+            # Try original name in master folder just in case
+            holdings_file = const.DOCS_MASTER_PATH / const.HOLDING_EXCEL_ZERODHA
 
         if not holdings_file.is_file():
             raise FileNotFoundError(f"Holdings file not found at {holdings_file}")
+
+        log.info(f"Reading holdings from: {holdings_file}")
 
         # Read the Excel file with all sheets
         sheets = pd.read_excel(

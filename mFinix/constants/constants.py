@@ -2,11 +2,19 @@ from datetime import date
 from pathlib import Path
 
 DOCS_PATH: Path = Path(Path(__file__).parents[1], "docs")
+DOCS_RAW_PATH: Path = DOCS_PATH / "raw"
+DOCS_MASTER_PATH: Path = DOCS_PATH / "master"
+DOCS_ARCHIVE_PATH: Path = DOCS_PATH / "archive"
 
 # files identifier for zerodha file names
 LEDGER_ID_ZERODHA: str = "ledger"
 TRADEBOOK_ID_ZERODHA: str = "tradebook"
 HOLDING_EXCEL_ZERODHA: str = "holdings-RY9229.xlsx"
+
+# Master filenames for consolidated data
+LEDGER_MASTER: str = "ledger_master.csv"
+TRADEBOOK_MASTER: str = "tradebook_master.csv"
+HOLDINGS_MASTER: str = "holdings_master.xlsx"
 
 # NSE web scrapping specific constants
 USE_WEBSCRAPPING: bool = True

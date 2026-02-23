@@ -26,14 +26,13 @@ class PanelModal:
         "justify-content": "space-between",
         "align-items": "center",
         "border-bottom": "1px solid var(--neutral-stroke-divider-rest)",
-        "padding-bottom": "10px",
-        "margin-bottom": "10px",
+        "padding-bottom": "5px",
     }
 
     MODAL_CONTAINER_STYLES = {
         "background-color": UIStyles.CARD_BACKGROUND,
         "border-radius": "12px",
-        "padding": "20px",
+        "padding": "5px",
         "min-width": "600px",
         "max-width": "1200px",
         "min-height": "400px",
@@ -50,19 +49,16 @@ class PanelModal:
                 "font-size": "1.2rem",
                 "font-weight": "600",
                 "color": UIStyles.HEADER_COLOR,
-                "margin": "0",
             },
+            margin=(0, 50, 0, 0),
         )
 
         self._back_cb = None
         self._back_btn = pn.widgets.Button(
-            name="Back",
             icon="arrow-left",
-            button_type="primary",
-            button_style="outline",
             width=100,
             height=40,
-            margin=(0, 10, 0, 0),
+            margin=(10, 10, 10, 10),
             visible=False,
         )
         self._back_btn.on_click(self._handle_back_click)
@@ -81,7 +77,6 @@ class PanelModal:
             self._content_column,
             styles=self.MODAL_CONTAINER_STYLES,
             sizing_mode="stretch_both",
-            css_classes=["pn-modal-content"],
         )
 
         # Pre-attach the modal body to the dashboard
