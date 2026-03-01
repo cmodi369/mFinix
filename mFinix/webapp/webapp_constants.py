@@ -55,27 +55,27 @@ class UIStyles:
     POSITIVE_COLOR = "var(--success-text-color)"  # Adapts to theme (Green)
     NEGATIVE_COLOR = "var(--danger-text-color)"  # Adapts to theme (Red)
     NEUTRAL_COLOR = "var(--neutral-text-color)"  # Adapts to theme (Gray)
-    INDICATOR_BG_COLOR = "#fbbf24"  # Input background for distinction
+    INDICATOR_BG_COLOR = "var(--neutral-fill-rest)"  # Neutral background
     HEADER_COLOR = "var(--neutral-foreground-rest)"
     ACCENT_COLOR = "var(--accent-foreground-rest)"
-    BORDER_STYLE = "3px solid #7c6464"
+    BORDER_STYLE = "1px solid var(--neutral-stroke-rest)"
 
     # Table styles
-    TABLE_THEME = "fast"  # Fast theme supports variables better usually, or we override
+    TABLE_THEME = "fast"
     TABLE_HEADER_BG = "var(--neutral-fill-hover)"
-    TABLE_ROW_HEIGHT = 35
+    TABLE_ROW_HEIGHT = 40
 
     # Text styles
-    INDICATOR_TITLE_SIZE = "14pt"
-    INDICATOR_VALUE_SIZE = "24pt"
+    INDICATOR_TITLE_SIZE = "13pt"
+    INDICATOR_VALUE_SIZE = "22pt"
 
     # Card styles
     CARD_BACKGROUND = "var(--neutral-fill-card-rest)"
     CARD_STYLE = {
         "background-color": CARD_BACKGROUND,
         "border": BORDER_STYLE,
-        "border-radius": "12px",
-        "box_shadow": "var(--elevation-shadow-3)",
+        "border-radius": "16px",
+        "box_shadow": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
         "margin_bottom": "24px",
         "display": "flex",
         "flex_direction": "column",
@@ -127,149 +127,60 @@ class UIStyles:
 
 
 class SidebarStyles:
-    """Modern sidebar styling constants following standard UI guidelines.
+    """Modern sidebar styling with dark navy theme and active state."""
 
-    Features:
-    - Clean color scheme matching dashboard
-    - Proper spacing and typography
-    - Active state with visual indicators
-    - Hover effects for better interactivity
-    - Accessible color contrasts
-    """
-
-    # Color palette - CSS Variables
-    PRIMARY_COLOR = "var(--accent-foreground-rest)"
-    PRIMARY_DARK = "var(--accent-foreground-active)"
-    BG_COLOR = "var(--neutral-fill-card-rest)"
-    TEXT_COLOR = "var(--neutral-foreground-rest)"
-    TEXT_SECONDARY = "var(--neutral-foreground-hint)"
-    BORDER_COLOR = "var(--neutral-stroke-divider-rest)"
-    ACTIVE_BG = "var(--neutral-fill-hover)"
-    ACTIVE_BORDER = "var(--accent-foreground-rest)"
-
-    # Button styling
-    BUTTON_STYLES = {
-        "width": "100%",
-        "text-align": "left",
-        "font-weight": "500",
-        "font-size": "14px",
-        "color": TEXT_COLOR,
-        "background-color": "transparent",
-        "border": "1px solid transparent",
-        "border-left": "4px solid transparent",
-        "cursor": "pointer",
-        "display": "flex",
-        "align-items": "center",
-        "margin": "0px",
-        "justify-content": "flex-start",
-        "padding": "5px 15px",
-        "transition": "all 0.2s ease-in-out",
-    }
-
-    # Active button styling
-    BUTTON_ACTIVE_STYLES = {
-        "background-color": ACTIVE_BG,
-        "border-left": f"4px solid {ACTIVE_BORDER}",
-        "color": PRIMARY_COLOR,
-        "font-weight": "600",
-        # "box-shadow": "inset 2px 0 0 0 " + ACTIVE_BORDER, # Can sometimes conflict with border-left
-    }
+    # Color palette
+    SIDEBAR_BG = "#0a1128"  # Dark navy background
+    BUTTON_INACTIVE_COLOR = "#94a3b8"  # Slate gray for inactive buttons
+    BUTTON_ACTIVE_BG = "#2563eb"  # Blue for active state
+    BUTTON_HOVER_BG = "rgba(255, 255, 255, 0.05)"  # Subtle white overlay on hover
 
     # Sidebar container styling
     SIDEBAR_CONTAINER_STYLES = {
         "width": "100%",
-        "padding": "15px",
-        "background-color": BG_COLOR,
+        "padding": "20px 16px",
+        "background-color": SIDEBAR_BG,
         "display": "flex",
         "flex-direction": "column",
-        "gap": "10px",
-        "height": "100vh",  # Ensure full height for background
+        "height": "100vh",
+        "border-radius": "0 24px 24px 0",  # Match rounded corners if visible
     }
 
-    # Header styles
-    HEADER_STYLES = {
-        "padding": "15px 0",
-        "border-bottom": f"1px solid {BORDER_COLOR}",
-        "margin-bottom": "10px",
-        "color": TEXT_COLOR,
-        "font-weight": "600",
-    }
+    # Button styling
+    BUTTON_CSS = """
+        :host(.nav-button) .bk-btn {
+            background-color: transparent !important;
+            border: none !important;
+            text-align: left !important;
+            color: #94a3b8 !important;
+            font-size: 15px !important;
+            padding: 14px 18px !important;
+            border-radius: 10px !important;
+            width: 100% !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+        }
 
-    # Footer styles
-    FOOTER_STYLES = {
-        "margin-top": "auto",
-        "padding-top": "15px",
-        "border-top": f"1px solid {BORDER_COLOR}",
-        "color": TEXT_SECONDARY,
-        "font-size": "11px",
-        "line-height": "1.5",
-    }
+        :host(.nav-active) .bk-btn {
+            background-color: #2563eb !important;
+            color: white !important;
+            font-weight: 500 !important;
+        }
+
+        :host(.nav-button:not(.nav-active)) .bk-btn:hover {
+            background-color: rgba(255, 255, 255, 0.05) !important;
+            color: white !important;
+            cursor: pointer;
+        }
+        """
 
     CUSTOM_CSS = """
-            /* Sidebar styling */
-        .pn-sidebar {
-            background-color: var(--neutral-fill-card-rest);
-            border-right: 1px solid var(--neutral-stroke-divider-rest);
-            padding: 0;
+        #sidebar {
+            padding: 5px 5px 5px 0px  !important;
+            overflow-y: hidden !important;
         }
 
-        /* Navigation buttons improved styling */
-        .pn-btn {
-            border-radius: 0px 4px 4px 0px;
-            transition: all 0.2s ease-in-out;
-            color: var(--neutral-foreground-rest);
+        .pn-sidebar-container {
+            margin-top: 3px !important;
         }
-
-        .pn-btn:hover {
-            background-color: var(--neutral-fill-hover) !important;
-            transform: translateX(2px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .pn-btn-light {
-            color: var(--neutral-foreground-rest);
-            border: 1px solid transparent;
-            border-left: 4px solid transparent;
-            background-color: transparent;
-        }
-
-        .pn-btn-light:active {
-            background-color: var(--neutral-fill-active) !important;
-            border-left: 4px solid var(--accent-foreground-rest);
-            color: var(--accent-foreground-rest);
-        }
-
-        /* Main content area improvements */
-        .pn-main {
-            padding: 20px;
-            background-color: var(--neutral-fill-bg);
-        }
-
-        /* Typography improvements */
-        h1, h2, h3 {
-            color: var(--neutral-foreground-rest);
-            font-weight: 600;
-        }
-
-        /* Focus states for accessibility */
-        .pn-btn:focus {
-            outline: 2px solid var(--accent-foreground-rest);
-            outline-offset: 2px;
-        }
-
-        /* Smooth transitions */
-        * {
-            transition-property: background-color, color, border-color;
-            transition-duration: 0.2s;
-            transition-timing-function: ease-in-out;
-        }
-
-        /* Card styling for content sections */
-        .pn-card {
-            background-color: var(--neutral-fill-card-rest);
-            border: 1px solid var(--neutral-stroke-card-rest);
-            border-radius: 8px;
-            box-shadow: var(--elevation-shadow-1);
-            padding: 16px;
-            margin-bottom: 16px;
-        }"""
+    """

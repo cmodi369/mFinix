@@ -29,10 +29,10 @@ class Mfinix:
 
         self.dashboard = pn.template.FastListTemplate(
             title="Multi Asset Finance Explorer",
-            header_background="#2F4F4F",
-            accent_base_color="#DAA520",
+            header_background="#0a1128",
+            accent_base_color="#3b82f6",
             site="mFinix",
-            sidebar_width=250,
+            sidebar_width=280,
             busy_indicator=None,
             main_max_width="95%",
         )
