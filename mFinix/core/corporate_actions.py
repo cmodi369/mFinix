@@ -306,6 +306,82 @@ def _apply_mergers(transactions, holdings, old_stock, new_stock, ratio):
     return transactions, holdings
 
 
+class _PendingActionsRegistry:
+    """Central deduplication registry for pending corporate actions.
+
+    Tracks (stock, date) per action_type to prevent duplicates from
+    multiple data sources (YFinance, NSE, Ledger).
+    """
+
+    def __init__(self):
+        self._actions: List[Dict] = []
+        # {action_type: {(stock, date_str), ...}} for O(1) lookup
+        self._seen: Dict[str, set] = {}
+
+    @property
+    def actions(self) -> List[Dict]:
+        return self._actions
+
+    @staticmethod
+    def _to_date(dt) -> date:
+        return dt.date() if hasattr(dt, "date") else dt
+
+    def _key(self, stock: str, dt) -> tuple:
+        return (stock, str(self._to_date(dt)))
+
+    def has(self, action_type: str, stock: str, dt) -> bool:
+        """Check if an action already exists for (stock, date, action_type)."""
+        return self._key(stock, dt) in self._seen.get(action_type, set())
+
+    def add(self, action: Dict) -> bool:
+        """Add action if not a duplicate. Returns True if added."""
+        atype = action["action_type"]
+        key = self._key(action["stock"], action["date"])
+        if key in self._seen.get(atype, set()):
+            log.debug("Skipping duplicate %s for %s", atype, key)
+            return False
+        self._seen.setdefault(atype, set()).add(key)
+        self._actions.append(action)
+        return True
+
+    def reclassify_or_skip(
+        self, new_action: Dict, from_type: str, to_type: str
+    ) -> bool:
+        """If an action of *from_type* exists at the same (stock, date),
+        reclassify it to *to_type* using *new_action*'s details.
+        Otherwise add *new_action* normally.
+        Returns True if reclassified or added.
+        """
+        stock = new_action["stock"]
+        dt = new_action["date"]
+        key = self._key(stock, dt)
+
+        if key in self._seen.get(from_type, set()):
+            # Reclassify the existing entry
+            for existing in self._actions:
+                if (
+                    existing["action_type"] == from_type
+                    and self._key(existing["stock"], existing["date"]) == key
+                ):
+                    existing["action_type"] = to_type
+                    existing["details"] = new_action.get(
+                        "details", existing["details"]
+                    )
+                    log.info(
+                        "Reclassified %s -> %s for %s on %s",
+                        from_type,
+                        to_type,
+                        stock,
+                        self._to_date(dt),
+                    )
+                    # Update seen sets
+                    self._seen[from_type].discard(key)
+                    self._seen.setdefault(to_type, set()).add(key)
+                    return True
+        # Not a reclassification — add normally
+        return self.add(new_action)
+
+
 def fetch_pending_corporate_actions_progressive(
     trade_data: pd.DataFrame, from_date: date = None
 ):
@@ -326,7 +402,7 @@ def fetch_pending_corporate_actions_progressive(
     ) = _read_local_corporate_actions_data()
 
     effective_date = from_date if from_date is not None else last_date
-    pending_actions: List[Dict] = []
+    registry = _PendingActionsRegistry()
 
     unique_isins = [isin for isin in trade_data[col.ISIN].unique() if not pd.isna(isin)]
     # Filter trades without ISIN too
@@ -334,6 +410,9 @@ def fetch_pending_corporate_actions_progressive(
         unique_isins.append(None)
 
     total_stocks = len(unique_isins)
+
+    # TODO: test
+    unique_isins = ["INE002A01018"]
 
     for i, stock_id in enumerate(unique_isins):
         if stock_id is None:
@@ -366,9 +445,6 @@ def fetch_pending_corporate_actions_progressive(
             actions_data = pd.DataFrame()
             stock_name = display_name
 
-        # Track dates for which dividends are already found from YFinance
-        yfin_div_dates = set()
-
         if not actions_data.empty:
             for dt, row in actions_data[
                 actions_data.index.date >= effective_date
@@ -381,8 +457,7 @@ def fetch_pending_corporate_actions_progressive(
                     and (qty := applicable[col.TOTAL_QUANTITY].iloc[-1]) > 0
                 ):
                     if row[col.DIVIDEND] > 0:
-                        yfin_div_dates.add(dt.date())
-                        pending_actions.append(
+                        registry.add(
                             {
                                 "action_type": const.DIVIDEND,
                                 "stock": stock_name,
@@ -403,7 +478,7 @@ def fetch_pending_corporate_actions_progressive(
 
                     if row[col.STOCK_SPLITS] > 0:
                         new_qty = qty * (row[col.STOCK_SPLITS] - 1)
-                        pending_actions.append(
+                        registry.add(
                             {
                                 "action_type": const.STOCK_SPLIT,
                                 "stock": stock_name,
@@ -436,12 +511,10 @@ def fetch_pending_corporate_actions_progressive(
                 log.warning("NSE scraping failed for %s: %s", stock_name, e)
                 all_actions = {}
 
-            # Dividends from NSE (avoid duplicates from YFinance)
+            # Dividends from NSE (registry auto-skips duplicates from YFinance)
             div_df = all_actions.get(const.DIVIDEND, pd.DataFrame())
             if not div_df.empty:
                 for dt, row in div_df[div_df.index.date >= effective_date].iterrows():
-                    if dt.date() in yfin_div_dates:
-                        continue
                     applicable = stock_trade_data[
                         stock_trade_data[col.TRADE_DATE].lt(dt.date())
                     ]
@@ -449,7 +522,7 @@ def fetch_pending_corporate_actions_progressive(
                         not applicable.empty
                         and (qty := applicable[col.TOTAL_QUANTITY].iloc[-1]) > 0
                     ):
-                        pending_actions.append(
+                        registry.add(
                             {
                                 "action_type": const.DIVIDEND,
                                 "stock": stock_name,
@@ -483,30 +556,39 @@ def fetch_pending_corporate_actions_progressive(
                             and (qty := applicable[col.TOTAL_QUANTITY].iloc[-1]) > 0
                         ):
                             subject = row.get("subject", key.capitalize())
-                            pending_actions.append(
-                                {
-                                    "action_type": key,
-                                    "stock": stock_name,
-                                    "isin": stock_id,
-                                    "date": dt,
-                                    "details": str(subject),
-                                    "quantity": (
-                                        qty if key != const.DEMERGER else 0
-                                    ),  # Demerger starts with 0 for incomplete
-                                    "raw_data": {
-                                        col.SYMBOL: stock_name,
-                                        col.TRADE_DATE: dt,
-                                        col.QUANTITY: 0,
-                                    },
-                                }
-                            )
+                            action = {
+                                "action_type": key,
+                                "stock": stock_name,
+                                "isin": stock_id,
+                                "date": dt,
+                                "details": str(subject),
+                                "quantity": (
+                                    qty if key != const.DEMERGER else 0
+                                ),  # Demerger starts with 0 for incomplete
+                                "raw_data": {
+                                    col.SYMBOL: stock_name,
+                                    col.TRADE_DATE: dt,
+                                    col.QUANTITY: 0,
+                                },
+                            }
+                            if key == const.BONUS:
+                                # If YFinance recorded a split on this
+                                # date, reclassify it as bonus (NSE has
+                                # the more accurate action type).
+                                registry.reclassify_or_skip(
+                                    action,
+                                    from_type=const.STOCK_SPLIT,
+                                    to_type=const.BONUS,
+                                )
+                            else:
+                                registry.add(action)
 
     # 3. Buyback detection from ledger
     yield {"status": "Checking for Buybacks in Ledger...", "progress": 95}
     try:
         new_buybacks = automatic_update_buyback_from_ledger(trade_data)
         for _, bb_row in new_buybacks.iterrows():
-            pending_actions.append(
+            registry.add(
                 {
                     "action_type": const.BUYBACK,
                     "stock": bb_row[col.SYMBOL],
@@ -524,7 +606,7 @@ def fetch_pending_corporate_actions_progressive(
     except Exception as e:
         log.warning("Buyback detection failed: %s", e)
 
-    yield {"status": "Complete", "progress": 100, "data": pending_actions}
+    yield {"status": "Complete", "progress": 100, "data": registry.actions}
 
 
 def fetch_pending_corporate_actions(
@@ -612,6 +694,22 @@ def save_approved_action(action: Dict) -> None:
     else:
         const.LOCAL_DATA_PATH.mkdir(parents=True, exist_ok=True)
         existing_df = pd.DataFrame(columns=list(raw.keys()))
+
+    # Guard: skip if identical (symbol, date) already exists in CSV
+    if not existing_df.empty and col.TRADE_DATE in existing_df.columns:
+        dup_mask = existing_df[col.SYMBOL].eq(
+            raw.get(col.SYMBOL)
+        ) & existing_df[col.TRADE_DATE].astype(str).eq(
+            str(raw.get(col.TRADE_DATE))
+        )
+        if dup_mask.any():
+            log.warning(
+                "Duplicate %s for %s on %s skipped in CSV",
+                action_type,
+                raw.get(col.SYMBOL),
+                raw.get(col.TRADE_DATE),
+            )
+            return
 
     # Append the new row
     new_row_df = pd.DataFrame([raw])
