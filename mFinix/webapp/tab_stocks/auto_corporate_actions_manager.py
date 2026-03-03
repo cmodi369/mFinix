@@ -173,11 +173,9 @@ class AutoCorporateActionsManager:
     def _on_fetch_click(self, event) -> None:
         """Execute progressive fetch and update the UI logger."""
         self.widgets["fetch_button"].disabled = True
+        self.widgets["source_radio"].disabled = True
+        self.widgets["custom_date_picker"].disabled = True
         self.widgets["status_text"].object = ""
-
-        # Hide the fetch row during processing
-        fetch_row = self._fetch_row
-        fetch_row.visible = False
 
         self.progress_logger_pane.visible = True
         self.progress_logger.clear()
@@ -204,8 +202,9 @@ class AutoCorporateActionsManager:
                             "**No pending actions found.**"
                         )
                         self.progress_logger_pane.visible = False
-                        fetch_row.visible = True
                         self.widgets["fetch_button"].disabled = False
+                        self.widgets["source_radio"].disabled = False
+                        self.widgets["custom_date_picker"].disabled = False
                     else:
                         pn.state.add_periodic_callback(
                             self._start_wizard, period=500, count=1
@@ -219,7 +218,8 @@ class AutoCorporateActionsManager:
                 log.error("Fetch failed: %s", e)
                 self.progress_logger.error(f"Error: {str(e)}")
                 self.widgets["fetch_button"].disabled = False
-                fetch_row.visible = True
+                self.widgets["source_radio"].disabled = False
+                self.widgets["custom_date_picker"].disabled = False
 
         pn.state.add_periodic_callback(_fetch_step, period=50, count=1)
 
