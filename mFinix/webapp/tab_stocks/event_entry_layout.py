@@ -31,7 +31,6 @@ class EventDataManager:
         self.equity_holdings_data = self.data_dict["equity_holdings"]
         self.widgets = widgets["event_wids"] = {
             "submit_button": pn.widgets.Button(name="Submit", button_type="primary"),
-            "cancel_button": pn.widgets.Button(name="Cancel", button_type="danger"),
         }
 
         self._event_layout_mapping = {}

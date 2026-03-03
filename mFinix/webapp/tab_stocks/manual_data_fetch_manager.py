@@ -10,6 +10,7 @@ import param
 
 import mFinix.constants.columns as col
 import mFinix.constants.constants as const
+import mFinix.core.read_kite_data as rkd
 from mFinix.core.master_source_data_manager import MasterSourceDataManager
 from mFinix.util import log
 from mFinix.webapp.components.progress_logger import ProgressLogger
@@ -18,7 +19,6 @@ from mFinix.webapp.tab_stocks.utility import (
     prepare_stocks_tab_data_progressive,
     run_once,
 )
-import mFinix.core.read_kite_data as rkd
 
 
 class ManualDataFetchManager:

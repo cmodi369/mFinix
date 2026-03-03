@@ -2,49 +2,87 @@
 Auto Corporate Actions Manager for the Stocks tab.
 """
 
-from datetime import date
+from datetime import date, datetime
+from typing import Dict, List, Optional
 
 import pandas as pd
 import panel as pn
 
+import mFinix.constants.columns as col
+import mFinix.constants.constants as const
 import mFinix.webapp.webapp_constants as webapp_const
 from mFinix.core.corporate_actions import (
     delete_all_corporate_actions_data,
-    fetch_pending_corporate_actions,
+    fetch_pending_corporate_actions_progressive,
     get_last_corporate_actions_update_date,
     save_approved_action,
 )
 from mFinix.util import log
+from mFinix.webapp.components.progress_logger import ProgressLogger
+from mFinix.webapp.components.wizard_step_header import WizardStepHeader
+from mFinix.webapp.tab_stocks.corporate_events_manager.demerger_inputs_manager import (
+    DemergerInputsManager,
+)
 from mFinix.webapp.tab_stocks.utility import run_once
+
+# ---------------------------------------------------------------------------
+# Action-type display metadata
+# ---------------------------------------------------------------------------
+
+_ACTION_TABS: List[Dict] = [
+    {"key": const.DEMERGER, "label": "Demerger", "color": "#f39c12"},
+    {"key": const.MERGER, "label": "Merger", "color": "#8e44ad"},
+    {"key": const.STOCK_SPLIT, "label": "Split", "color": "#2980b9"},
+    {"key": const.BONUS, "label": "Bonus", "color": "#27ae60"},
+    {"key": const.DIVIDEND, "label": "Dividend", "color": "#16a085"},
+    {"key": const.BUYBACK, "label": "Buyback", "color": "#c0392b"},
+]
+
+# Columns shown in each per-type Tabulator
+_TABLE_COLUMNS = ["Stock", "Type", "Date", "Details", "Quantity"]
 
 
 class AutoCorporateActionsManager:
     """Manager for the Auto Corporate Actions review workflow.
 
-    Fetches pending corporate actions for preview and allows the user
-    to approve or reject each action before saving to disk.
-
-    Parameters
-    ----------
-    data_dict : dict
-        Shared data dictionary from the stocks tab (contains transactions_data).
-    widgets : dict
-        Shared widgets dictionary for the stocks tab.
+    Fetches pending corporate actions progressively and presents them in a
+    wizard interface (WizardStepHeader). Allows per-row and bulk approval/rejection.
     """
 
-    # Column keys for the preview table
-    _TABLE_COLUMNS = ["Stock", "Type", "Date", "Details", "Quantity"]
-
-    def __init__(self, data_dict: dict, widgets: dict) -> None:
+    def __init__(self, data_dict: dict, widgets: dict, panel_modal=None) -> None:
         self.data_dict = data_dict
         self.transactions_data = self.data_dict["transactions_data"]
         self.widgets = widgets.get("auto_corp_wids", {})
         widgets["auto_corp_wids"] = self.widgets
+        self.panel_modal = panel_modal
 
         # Internal state
-        self._pending_actions: list[dict] = []
-        self._layout = pn.Column(pn.Spacer(height=300))
-        self._initialized = False
+        self._pending_actions: List[Dict] = []
+        self._current_step = 0
+        self._steps = []
+
+        # Components
+        self.wizard_header = WizardStepHeader(steps=[], active_step=0)
+        self.progress_logger = ProgressLogger()
+        self.progress_logger_pane = pn.Column(
+            pn.pane.Markdown("### 🔍 Fetching Corporate Actions..."),
+            self.progress_logger,
+            visible=False,
+            sizing_mode="stretch_width",
+        )
+
+        # UI Layout areas
+        self._content_area = pn.Column(sizing_mode="stretch_width")
+        self._nav_area = pn.Row(sizing_mode="stretch_width")
+
+        self._layout = pn.Column(
+            self.wizard_header,
+            self.progress_logger_pane,
+            self._content_area,
+            pn.layout.Divider(),
+            self._nav_area,
+            sizing_mode="stretch_width",
+        )
 
     @run_once
     def initialize(self) -> None:
@@ -52,6 +90,11 @@ class AutoCorporateActionsManager:
         self._create_widgets()
         self._add_callbacks()
         log.info("AutoCorporateActionsManager initialized")
+
+    def _add_callbacks(self) -> None:
+        """Connect all widget callbacks."""
+        self.widgets["fetch_button"].on_click(self._on_fetch_click)
+        self.widgets["source_radio"].param.watch(self._on_source_change, "value")
 
     def _create_widgets(self) -> None:
         """Create all UI widgets for the auto corporate actions flow."""
@@ -76,292 +119,365 @@ class AutoCorporateActionsManager:
         last_update = get_last_corporate_actions_update_date()
         self.widgets["last_update_text"] = pn.pane.Markdown(
             f"*Last Updated: {last_update.strftime('%d-%b-%Y')}*",
-            styles={
-                "color": "var(--neutral-foreground-hint)",
-                "font-size": "0.8rem",
-                "margin-top": "-5px",
-            },
+            styles={"color": "#7f8c8d", "font-size": "0.85rem"},
         )
 
         self.widgets["fetch_button"] = pn.widgets.Button(
-            name="🔄 Fetch Actions",
+            name="Fetch Actions",
             button_type="primary",
-            width=200,
+            width=140,
+            styles={"font-weight": "bold"},
         )
 
-        # --- Preview table ---
-        self.widgets["preview_table"] = pn.widgets.Tabulator(
-            pd.DataFrame(columns=self._TABLE_COLUMNS),
+        self.widgets["status_text"] = pn.pane.Markdown(
+            "", sizing_mode="stretch_width", margin=(10, 0)
+        )
+
+    @property
+    def layout(self) -> list:
+        """Return the main layout container."""
+        self._fetch_row = pn.Row(
+            pn.Column(
+                self.widgets["source_radio"],
+                self.widgets["last_update_text"],
+                self.widgets["custom_date_picker"],
+                margin=(0, 20, 0, 0),
+            ),
+            pn.Column(
+                pn.Spacer(height=20),
+                self.widgets["fetch_button"],
+            ),
+            sizing_mode="stretch_width",
+            styles={"align-items": "flex-end"},
+            name="fetch_row",
+        )
+        return [
+            pn.Column(
+                # Fetch controls container
+                self._fetch_row,
+                pn.layout.Divider(),
+                self.widgets["status_text"],
+                self._layout,
+                sizing_mode="stretch_width",
+            )
+        ]
+
+    # =========================================================================
+    # Callbacks
+    # =========================================================================
+
+    def _on_source_change(self, event) -> None:
+        """Show/hide the custom date picker based on selection."""
+        self.widgets["custom_date_picker"].visible = event.new == "From Selected Date"
+
+    def _on_fetch_click(self, event) -> None:
+        """Execute progressive fetch and update the UI logger."""
+        self.widgets["fetch_button"].disabled = True
+        self.widgets["status_text"].object = ""
+
+        # Hide the fetch row during processing
+        fetch_row = self._fetch_row
+        fetch_row.visible = False
+
+        self.progress_logger_pane.visible = True
+        self.progress_logger.clear()
+        self.progress_logger.log("🔍 Initializing fetch...", "info")
+
+        from_date = None
+        if self.widgets["source_radio"].value == "From Selected Date":
+            from_date = self.widgets["custom_date_picker"].value
+            delete_all_corporate_actions_data()
+
+        generator = fetch_pending_corporate_actions_progressive(
+            self.transactions_data, from_date
+        )
+
+        def _fetch_step():
+            try:
+                update = next(generator)
+                if "data" in update:
+                    self._pending_actions = update["data"]
+                    self.progress_logger.complete("Fetching complete!")
+
+                    if not self._pending_actions:
+                        self.widgets["status_text"].object = (
+                            "**No pending actions found.**"
+                        )
+                        self.progress_logger_pane.visible = False
+                        fetch_row.visible = True
+                        self.widgets["fetch_button"].disabled = False
+                    else:
+                        pn.state.add_periodic_callback(
+                            self._start_wizard, period=500, count=1
+                        )
+                else:
+                    self.progress_logger.log(update["status"], "info")
+                    pn.state.add_periodic_callback(_fetch_step, period=50, count=1)
+            except StopIteration:
+                pass
+            except Exception as e:
+                log.error("Fetch failed: %s", e)
+                self.progress_logger.error(f"Error: {str(e)}")
+                self.widgets["fetch_button"].disabled = False
+                fetch_row.visible = True
+
+        pn.state.add_periodic_callback(_fetch_step, period=50, count=1)
+
+    def _start_wizard(self) -> None:
+        """Analyze results and initialize wizard steps."""
+        self.progress_logger_pane.visible = False
+
+        by_type = {}
+        for a in self._pending_actions:
+            by_type.setdefault(a["action_type"], []).append(a)
+
+        self._steps = [meta for meta in _ACTION_TABS if meta["key"] in by_type]
+
+        if not self._steps:
+            self.widgets["status_text"].object = "**No actions to review.**"
+            return
+
+        self.wizard_header.steps = [s["label"] for s in self._steps]
+        self.wizard_header.visible = True
+        self._current_step = 0
+        self._render_step()
+
+    def _render_step(self) -> None:
+        """Render the current step based on _current_step index."""
+        self.wizard_header.active_step = self._current_step
+        step_meta = self._steps[self._current_step]
+        action_type = step_meta["key"]
+
+        actions = [a for a in self._pending_actions if a["action_type"] == action_type]
+
+        df_rows = []
+        for action in actions:
+            dt = action["date"]
+            date_str = dt.strftime("%Y-%m-%d") if hasattr(dt, "strftime") else str(dt)
+            df_rows.append(
+                {
+                    "Stock": action["stock"],
+                    "Type": action["action_type"].capitalize(),
+                    "Date": date_str,
+                    "Details": str(action.get("details", "")).replace("₹", "Rs."),
+                    "Quantity": action.get("quantity", 0),
+                }
+            )
+
+        is_demerger = action_type == const.DEMERGER
+        if is_demerger:
+            table_buttons = {"add": "➕"}
+        else:
+            table_buttons = {"approve": "✅", "reject": "❌"}
+
+        table = pn.widgets.Tabulator(
+            pd.DataFrame(df_rows),
             show_index=False,
             layout="fit_data",
             disabled=True,
             sizing_mode="stretch_width",
-            buttons={"approve": "✅", "reject": "❌"},
+            buttons=table_buttons,
             theme=webapp_const.UIStyles.TABLE_THEME,
             row_height=webapp_const.UIStyles.TABLE_ROW_HEIGHT,
             page_size=20,
             pagination="local",
         )
+        table.on_click(self._make_table_click_cb(action_type, actions))
 
-        # --- Bulk action buttons ---
-        self.widgets["approve_all_btn"] = pn.widgets.Button(
-            name="✅ Approve All",
-            button_type="success",
-            width=150,
-            visible=False,
+        approve_all_btn = pn.widgets.Button(
+            name="✅ Approve All", button_type="success", width=140
         )
-        self.widgets["reject_all_btn"] = pn.widgets.Button(
-            name="❌ Reject All",
-            button_type="danger",
-            width=150,
-            visible=False,
+        reject_all_btn = pn.widgets.Button(
+            name="❌ Reject All", button_type="danger", width=140
         )
 
-        # --- Loading indicator ---
-        self.widgets["loading_spinner"] = pn.indicators.LoadingSpinner(
-            value=False,
-            size=30,
-            color="primary",
-        )
+        approve_all_btn.on_click(self._make_approve_all_cb(action_type, actions))
+        reject_all_btn.on_click(self._make_reject_all_cb(action_type, actions))
 
-        # --- Status text ---
-        self.widgets["status_text"] = pn.pane.Markdown(
-            "",
-            styles={"color": "var(--neutral-foreground-hint)", "font-size": "0.9rem"},
-        )
-
-    def _add_callbacks(self) -> None:
-        """Attach callbacks to widgets."""
-        self.widgets["source_radio"].param.watch(self._on_source_change, "value")
-        self.widgets["fetch_button"].on_click(self._on_fetch_click)
-        self.widgets["preview_table"].on_click(self._on_table_click)
-        self.widgets["approve_all_btn"].on_click(self._on_approve_all)
-        self.widgets["reject_all_btn"].on_click(self._on_reject_all)
-
-    @property
-    def layout(self) -> list:
-        """Return the layout components for the modal or inline display."""
-        return [
-            pn.Column(
-                # Source selection
-                pn.Row(
-                    pn.Column(
-                        pn.pane.Markdown(
-                            "**Fetch Mode:**",
-                            styles={"margin-bottom": "5px"},
-                        ),
-                        self.widgets["source_radio"],
-                        self.widgets["last_update_text"],
-                        self.widgets["custom_date_picker"],
-                        margin=(0, 20, 0, 0),
-                    ),
-                    pn.Column(
-                        pn.Spacer(height=20),
-                        self.widgets["fetch_button"],
-                        self.widgets["loading_spinner"],
-                    ),
-                    sizing_mode="stretch_width",
-                    styles={"align-items": "flex-end"},
-                ),
-                pn.layout.Divider(),
-                # Status and table
-                self.widgets["status_text"],
-                self.widgets["preview_table"],
-                # Bulk actions
-                pn.Row(
-                    self.widgets["approve_all_btn"],
-                    self.widgets["reject_all_btn"],
-                    sizing_mode="stretch_width",
-                    styles={
-                        "justify-content": "flex-end",
-                        "gap": "10px",
-                        "margin-top": "10px",
-                    },
-                ),
+        self._content_area.objects = [
+            pn.pane.Markdown(f"### {step_meta['label']}"),
+            table,
+            pn.Row(
+                approve_all_btn,
+                reject_all_btn,
                 sizing_mode="stretch_width",
-            )
+                visible=not is_demerger,
+                styles={
+                    "justify-content": "flex-end",
+                    "gap": "10px",
+                    "margin-top": "10px",
+                },
+            ),
         ]
 
-    # ========================================================================
-    # Callbacks
-    # ========================================================================
+        # Navigation
+        nav_buttons = []
+        if self._current_step > 0:
+            prev_btn = pn.widgets.Button(name="Back", button_type="default", width=100)
+            prev_btn.on_click(self._prev_step)
+            nav_buttons.append(prev_btn)
 
-    def _on_source_change(self, event) -> None:
-        """Show/hide the custom date picker based on radio selection."""
-        self.widgets["custom_date_picker"].visible = event.new == "From Selected Date"
+        nav_buttons.append(pn.Spacer(sizing_mode="stretch_width"))
 
-    def _on_fetch_click(self, _) -> None:
-        """Fetch pending corporate actions and populate the preview table."""
-        self.widgets["loading_spinner"].value = True
-        self.widgets["fetch_button"].disabled = True
-        self.widgets["status_text"].object = (
-            "*Fetching corporate actions... This may take a moment.*"
-        )
-
-        try:
-            # Determine from_date
-            from_date = None
-            if self.widgets["source_radio"].value == "From Selected Date":
-                from_date = self.widgets["custom_date_picker"].value
-                # Backup and delete existing data
-                backup_path = delete_all_corporate_actions_data()
-                pn.state.notifications.info(
-                    f"Existing data backed up to {backup_path.name}"
-                )
-
-            # Fetch pending actions
-            self._pending_actions = fetch_pending_corporate_actions(
-                self.transactions_data, from_date
+        if self._current_step < len(self._steps) - 1:
+            next_btn = pn.widgets.Button(name="Next", button_type="primary", width=100)
+            next_btn.on_click(self._next_step)
+            nav_buttons.append(next_btn)
+        else:
+            finish_btn = pn.widgets.Button(
+                name="Finish", button_type="success", width=100
             )
+            finish_btn.on_click(self._on_finish)
+            nav_buttons.append(finish_btn)
 
-            if not self._pending_actions:
-                self.widgets["status_text"].object = (
-                    "**No new corporate actions found.**"
-                )
-                self.widgets["preview_table"].value = pd.DataFrame(
-                    columns=self._TABLE_COLUMNS
-                )
-                self._toggle_bulk_buttons(False)
-                pn.state.notifications.info("No new corporate actions detected.")
-            else:
-                self._refresh_table()
-                self.widgets["status_text"].object = (
-                    f"**Found {len(self._pending_actions)} pending action(s).** "
-                    "Click ✅ to approve or ❌ to reject each action."
-                )
-                self._toggle_bulk_buttons(True)
-                pn.state.notifications.success(
-                    f"Found {len(self._pending_actions)} pending corporate action(s)."
-                )
+        self._nav_area.objects = nav_buttons
 
-        except Exception as e:
-            log.error("Error fetching corporate actions: %s", e)
-            self.widgets["status_text"].object = f"**Error:** {str(e)}"
-            pn.state.notifications.error(f"Error fetching actions: {str(e)}")
-        finally:
-            self.widgets["loading_spinner"].value = False
-            self.widgets["fetch_button"].disabled = False
+    def _next_step(self, _) -> None:
+        self._current_step += 1
+        self._render_step()
 
-    def _on_table_click(self, event) -> None:
-        """Handle approve/reject button clicks in the preview table."""
-        row_idx = event.row
+    def _prev_step(self, _) -> None:
+        self._current_step -= 1
+        self._render_step()
 
-        if row_idx >= len(self._pending_actions):
+    def _on_finish(self, _) -> None:
+        if self.panel_modal:
+            self.panel_modal.close()
+        pn.state.notifications.success("Corporate actions review completed.")
+
+    # =========================================================================
+    # Interaction Logic
+    # =========================================================================
+
+    def _make_table_click_cb(self, action_type: str, actions: List[Dict]):
+        def _cb(event):
+            if event.row >= len(actions):
+                return
+            action = actions[event.row]
+            if event.column == "add" and action_type == const.DEMERGER:
+                self._open_demerger_modal(action)
+            elif event.column == "approve":
+                self._approve_single(action)
+            elif event.column == "reject":
+                self._reject_single(action)
+
+        return _cb
+
+    def _open_demerger_modal(self, action: Dict):
+        """Transition to the Add Demerger Details sub-modal."""
+        if self.panel_modal is None:
             return
 
-        if event.column == "approve":
-            self._approve_action(row_idx)
-        elif event.column == "reject":
-            self._reject_action(row_idx)
-
-    def _on_approve_all(self, _) -> None:
-        """Approve all remaining pending actions."""
-        if not self._pending_actions:
-            pn.state.notifications.info("No pending actions to approve.")
-            return
-
-        count = len(self._pending_actions)
-        # Process in reverse to avoid index shifting
-        for action in list(self._pending_actions):
-            try:
-                save_approved_action(action)
-            except Exception as e:
-                log.error(
-                    "Failed to approve %s for %s: %s",
-                    action["action_type"],
-                    action["stock"],
-                    e,
-                )
-
-        self._pending_actions.clear()
-        self._refresh_table()
-        self._refresh_last_update_date()
-        self._toggle_bulk_buttons(False)
-        self.widgets["status_text"].object = (
-            f"**All {count} action(s) approved and saved.** ✅"
+        # Fresh widget dict for this modal instance to avoid callback accumulation
+        event_widgets = {}
+        event_widgets["submit_button"] = pn.widgets.Button(
+            name="✅ Submit", button_type="success", width=140
         )
-        pn.state.notifications.success(f"All {count} action(s) approved and saved.")
 
-    def _on_reject_all(self, _) -> None:
-        """Reject all remaining pending actions."""
-        count = len(self._pending_actions)
-        self._pending_actions.clear()
-        self._refresh_table()
-        self._toggle_bulk_buttons(False)
-        self.widgets["status_text"].object = f"**All {count} action(s) rejected.** ❌"
-        pn.state.notifications.warning(f"All {count} action(s) rejected.")
+        # Layout container for the manager to inject into
+        temp_layout = pn.Column(sizing_mode="stretch_width")
 
-    # ========================================================================
-    # Private helpers
-    # ========================================================================
+        mgr = DemergerInputsManager(
+            transactions_data=self.transactions_data,
+            holdings_data=self.data_dict["equity_holdings"],
+            widgets=event_widgets,
+            layout=temp_layout,
+        )
 
-    def _approve_action(self, idx: int) -> None:
-        """Approve and save a single action by index."""
-        action = self._pending_actions[idx]
+        # Pre-fill available values from the pending action
+        stock = action.get("stock")
+        if stock:
+            mgr.widgets["stock_select"].value = stock
+
+        action_date = action.get("date")
+        if action_date is not None:
+            # Handle Timestamp objects from pandas
+            if hasattr(action_date, "date"):
+                action_date = action_date.date()
+            mgr.widgets["transactions_date_select"].value = action_date
+
+        # Render the demerger form
+        mgr.show_layout()
+
+        # Wire submit: save demerger data then remove from pending list
+        def _on_submit(_):
+            mgr.process_submission()
+            self._on_demerger_submitted(action)
+
+        event_widgets["submit_button"].on_click(_on_submit)
+
+        self.panel_modal.open(
+            content=[temp_layout],
+            title="Add Demerger Details",
+            back_cb=self._reopen_self,
+        )
+
+    def _reopen_self(self) -> None:
+        """Used as back callback from sub-modals."""
+        if self.panel_modal:
+            self._render_step()
+            self.panel_modal.open(self.layout, "⚡ Auto Corporate Actions")
+
+    def _on_demerger_submitted(self, action: Dict) -> None:
+        """Remove demerger from list and refresh."""
+        if action in self._pending_actions:
+            self._pending_actions.remove(action)
+        self._render_step()
+        self._refresh_last_update_date()
+
+    def _make_approve_all_cb(self, action_type: str, actions: List[Dict]):
+        def _cb(_):
+            count = 0
+            for action in list(actions):
+                try:
+                    save_approved_action(action)
+                    self._pending_actions.remove(action)
+                    count += 1
+                except Exception as e:
+                    log.error("Failed to approve %s: %s", action_type, e)
+            self._render_step()
+            self._refresh_last_update_date()
+            pn.state.notifications.success(f"Approved {count} {action_type} action(s).")
+
+        return _cb
+
+    def _make_reject_all_cb(self, action_type: str, actions: List[Dict]):
+        def _cb(_):
+            count = 0
+            for action in list(actions):
+                if action in self._pending_actions:
+                    self._pending_actions.remove(action)
+                    count += 1
+            self._render_step()
+            pn.state.notifications.warning(f"Rejected {count} {action_type} action(s).")
+
+        return _cb
+
+    def _approve_single(self, action: Dict) -> None:
         try:
             save_approved_action(action)
-            stock = action["stock"]
-            action_type = action["action_type"]
-            self._pending_actions.pop(idx)
-            self._refresh_table()
+            if action in self._pending_actions:
+                self._pending_actions.remove(action)
+            self._render_step()
             self._refresh_last_update_date()
-            self._update_bulk_visibility()
-            pn.state.notifications.success(f"Approved {action_type} for {stock}")
-            log.info("Approved %s for %s", action_type, stock)
+            pn.state.notifications.success(
+                f"Approved {action['action_type']} for {action['stock']}"
+            )
         except Exception as e:
-            log.error("Failed to save action: %s", e)
-            pn.state.notifications.error(f"Failed to save: {str(e)}")
+            log.error("Approval failed: %s", e)
+            pn.state.notifications.error(f"Approval failed: {e}")
 
-    def _reject_action(self, idx: int) -> None:
-        """Reject (discard) a single action by index."""
-        action = self._pending_actions[idx]
-        stock = action["stock"]
-        action_type = action["action_type"]
-        self._pending_actions.pop(idx)
-        self._refresh_table()
-        self._update_bulk_visibility()
-        pn.state.notifications.warning(f"Rejected {action_type} for {stock}")
-        log.info("Rejected %s for %s", action_type, stock)
-
-    def _refresh_table(self) -> None:
-        """Rebuild the preview table from pending actions."""
-        if not self._pending_actions:
-            self.widgets["preview_table"].value = pd.DataFrame(
-                columns=self._TABLE_COLUMNS
-            )
-            return
-
-        rows = []
-        for action in self._pending_actions:
-            dt = action["date"]
-            date_str = dt.strftime("%Y-%m-%d") if hasattr(dt, "strftime") else str(dt)
-            rows.append(
-                {
-                    "Stock": action["stock"],
-                    "Type": action["action_type"].capitalize(),
-                    "Date": date_str,
-                    "Details": action["details"],
-                    "Quantity": action["quantity"],
-                }
-            )
-
-        self.widgets["preview_table"].value = pd.DataFrame(rows)
+    def _reject_single(self, action: Dict) -> None:
+        if action in self._pending_actions:
+            self._pending_actions.remove(action)
+        self._render_step()
+        pn.state.notifications.warning(
+            f"Rejected {action['action_type']} for {action['stock']}"
+        )
 
     def _refresh_last_update_date(self) -> None:
-        """Update the 'Last Updated' label with the current value from disk."""
+        """Update the label from disk."""
         last_update = get_last_corporate_actions_update_date()
         self.widgets["last_update_text"].object = (
             f"*Last Updated: {last_update.strftime('%d-%b-%Y')}*"
         )
-
-    def _toggle_bulk_buttons(self, visible: bool) -> None:
-        """Show or hide the bulk action buttons."""
-        self.widgets["approve_all_btn"].visible = visible
-        self.widgets["reject_all_btn"].visible = visible
-
-    def _update_bulk_visibility(self) -> None:
-        """Update bulk button visibility based on remaining actions."""
-        has_actions = len(self._pending_actions) > 0
-        self._toggle_bulk_buttons(has_actions)
-        if not has_actions:
-            self.widgets["status_text"].object = "**All actions processed.** ✅"

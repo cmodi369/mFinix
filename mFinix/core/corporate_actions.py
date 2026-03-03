@@ -59,6 +59,9 @@ def add_corporate_actions_in_tradebook(trade_data: pd.DataFrame):
     )
 
     # adjust total quantity column
+    ret_data[col.QUANTITY] = pd.to_numeric(
+        ret_data[col.QUANTITY], errors="coerce"
+    ).fillna(0)
     ret_data[col.TOTAL_QUANTITY] = ret_data.groupby(col.SYMBOL)[col.QUANTITY].cumsum()
 
     # add dividend data (doesn't affect quantity but needed for XIRR)
@@ -168,118 +171,82 @@ def automatic_update_buyback_from_ledger(trade_data: pd.DataFrame) -> pd.DataFra
 
 
 def _read_local_corporate_actions_data():
-    # check if local corporate actions data is available
-    dividend_file = Path(const.LOCAL_DATA_PATH / const.DIVIDEND_CSV)
-    if dividend_file.exists():
-        log.info("Reading local corporate actions data.")
-        dividend_data = pd.read_csv(dividend_file)
-        dividend_data[col.TRADE_DATE] = pd.to_datetime(
-            dividend_data[col.TRADE_DATE], format="mixed"
-        ).dt.date
-        log.info("Dividends data is pulled for %s entries", len(dividend_data))
+    """Read local corporate actions data from CSV files.
 
-        splits_data = pd.read_csv(Path(const.LOCAL_DATA_PATH / const.SPLIT_ACTIONS_CSV))
-        splits_data[col.TRADE_DATE] = pd.to_datetime(
-            splits_data[col.TRADE_DATE], format="mixed"
-        ).dt.date
-        log.info("Stock splits data is pulled for %s entries", len(splits_data))
-
-        ipo_data = pd.read_csv(Path(const.LOCAL_DATA_PATH / const.IPO_CSV))
-        ipo_data[col.TRADE_DATE] = pd.to_datetime(
-            ipo_data[col.TRADE_DATE], format="mixed"
-        ).dt.date
-        log.info("IPO data is pulled for %s entries", len(ipo_data))
-
-        merger_file = Path(const.LOCAL_DATA_PATH / const.MERGER_CSV)
-        if merger_file.exists():
-            merger_data = pd.read_csv(merger_file)
-            merger_data[col.TRADE_DATE] = pd.to_datetime(
-                merger_data[col.TRADE_DATE], format="mixed"
-            ).dt.date
-            log.info("Merger data is pulled for %s entries", len(merger_data))
-        else:
-            merger_data = pd.DataFrame(
-                columns=[col.SYMBOL, col.TRADE_DATE, col.QUANTITY]
-            )
-
-        demerger_file = Path(const.LOCAL_DATA_PATH / const.DEMERGER_CSV)
-        if demerger_file.exists():
-            demerger_data = pd.read_csv(demerger_file)
-            demerger_data[col.TRADE_DATE] = pd.to_datetime(
-                demerger_data[col.TRADE_DATE], format="mixed"
-            ).dt.date
-            log.info("Demerger data is pulled for %s entries", len(demerger_data))
-        else:
-            demerger_data = pd.DataFrame(
-                columns=[col.SYMBOL, col.TRADE_DATE, col.QUANTITY]
-            )
-
-        bonus_file = Path(const.LOCAL_DATA_PATH / const.BONUS_CSV)
-        if bonus_file.exists():
-            bonus_data = pd.read_csv(bonus_file)
-            bonus_data[col.TRADE_DATE] = pd.to_datetime(
-                bonus_data[col.TRADE_DATE], format="mixed"
-            ).dt.date
-            log.info("Bonus data is pulled for %s entries", len(bonus_data))
-        else:
-            bonus_data = pd.DataFrame(
-                columns=[col.SYMBOL, col.TRADE_DATE, col.QUANTITY]
-            )
-
-        buyback_file = Path(const.LOCAL_DATA_PATH / const.BUYBACK_CSV)
-        if buyback_file.exists():
-            buyback_data = pd.read_csv(buyback_file)
-            buyback_data[col.TRADE_DATE] = pd.to_datetime(
-                buyback_data[col.TRADE_DATE], format="mixed"
-            ).dt.date
-            log.info("Buyback data is pulled for %s entries", len(buyback_data))
-        else:
-            buyback_data = pd.DataFrame(
-                columns=[col.SYMBOL, col.TRADE_DATE, col.QUANTITY]
-            )
-
-        last_date = pd.to_datetime(
-            Path(const.LOCAL_DATA_PATH / const.LAST_DATE_TXT).read_text()
-        ).date()
-
-        log.info("Last corporate data was updated on: %s", last_date)
-
-    else:
-        log.info("Local corporate actions data is not available.")
+    Handles missing files by returning empty DataFrames with correct columns.
+    """
+    # ensure directory exists
+    if not const.LOCAL_DATA_PATH.exists():
         const.LOCAL_DATA_PATH.mkdir(parents=True, exist_ok=True)
-        dividend_data = pd.DataFrame(
-            columns=[
-                col.SYMBOL,
-                col.ISIN,
-                col.TRADE_DATE,
-                col.QUANTITY,
-                col.DIVIDEND_COL,
-                col.TRANSACTION_AMOUNT,
-            ]
-        )
-        ipo_data = pd.DataFrame(
-            columns=[
-                col.SYMBOL,
-                col.ISIN,
-                col.TRADE_DATE,
-                col.QUANTITY,
-                col.PRICE,
-            ]
-        )
-        splits_data = pd.DataFrame(
-            columns=[
-                col.SYMBOL,
-                col.ISIN,
-                col.TRADE_DATE,
-                col.STOCK_SPLITS_COL,
-                col.QUANTITY,
-            ]
-        )
-        merger_data = pd.DataFrame(columns=[col.SYMBOL, col.TRADE_DATE, col.QUANTITY])
-        demerger_data = pd.DataFrame(columns=[col.SYMBOL, col.TRADE_DATE, col.QUANTITY])
-        bonus_data = pd.DataFrame(columns=[col.SYMBOL, col.TRADE_DATE, col.QUANTITY])
-        buyback_data = pd.DataFrame(columns=[col.SYMBOL, col.TRADE_DATE, col.QUANTITY])
-        last_date = const.DEFAULT_LAST_DATE
+
+    def load_csv_safe(filename, default_cols):
+        path = const.LOCAL_DATA_PATH / filename
+        if path.exists():
+            try:
+                df = pd.read_csv(path)
+                if not df.empty and col.TRADE_DATE in df.columns:
+                    df[col.TRADE_DATE] = pd.to_datetime(
+                        df[col.TRADE_DATE], format="mixed"
+                    ).dt.date
+                log.info(
+                    "%s data is pulled for %d entries",
+                    filename.capitalize().replace(".csv", ""),
+                    len(df),
+                )
+                return df
+            except Exception as e:
+                log.warning("Could not read %s: %s", filename, e)
+
+        return pd.DataFrame(columns=default_cols)
+
+    dividend_data = load_csv_safe(
+        const.DIVIDEND_CSV,
+        [
+            col.SYMBOL,
+            col.ISIN,
+            col.TRADE_DATE,
+            col.QUANTITY,
+            col.DIVIDEND_COL,
+            col.TRANSACTION_AMOUNT,
+        ],
+    )
+    splits_data = load_csv_safe(
+        const.SPLIT_ACTIONS_CSV,
+        [col.SYMBOL, col.ISIN, col.TRADE_DATE, col.STOCK_SPLITS_COL, col.QUANTITY],
+    )
+    ipo_data = load_csv_safe(
+        const.IPO_CSV, [col.SYMBOL, col.ISIN, col.TRADE_DATE, col.QUANTITY, col.PRICE]
+    )
+    merger_data = load_csv_safe(
+        const.MERGER_CSV, [col.SYMBOL, col.TRADE_DATE, col.QUANTITY]
+    )
+    demerger_data = load_csv_safe(
+        const.DEMERGER_CSV,
+        [
+            col.SYMBOL,
+            col.TRADE_DATE,
+            col.QUANTITY,
+            col.PARENT_SYMBOL,
+            col.PARENT_QUANTITY,
+            col.RATIO,
+        ],
+    )
+    bonus_data = load_csv_safe(
+        const.BONUS_CSV, [col.SYMBOL, col.TRADE_DATE, col.QUANTITY]
+    )
+    buyback_data = load_csv_safe(
+        const.BUYBACK_CSV, [col.SYMBOL, col.TRADE_DATE, col.QUANTITY]
+    )
+
+    # Handle last_date.txt
+    last_date_file = const.LOCAL_DATA_PATH / const.LAST_DATE_TXT
+    last_date = const.DEFAULT_LAST_DATE
+    if last_date_file.exists():
+        try:
+            last_date = pd.to_datetime(last_date_file.read_text().strip()).date()
+            log.info("Last corporate data was updated on: %s", last_date)
+        except Exception as e:
+            log.warning("Could not parse %s: %s", const.LAST_DATE_TXT, e)
 
     return (
         dividend_data,
@@ -339,25 +306,13 @@ def _apply_mergers(transactions, holdings, old_stock, new_stock, ratio):
     return transactions, holdings
 
 
-def fetch_pending_corporate_actions(
+def fetch_pending_corporate_actions_progressive(
     trade_data: pd.DataFrame, from_date: date = None
-) -> List[Dict]:
-    """Fetch corporate actions for preview without saving.
-
-    Mirrors automatic_update_corporate_actions_data but returns a list of
-    action dicts for the user to approve/reject before persisting.
-
-    Parameters
-    ----------
-    trade_data : pd.DataFrame
-        Trade data with columns: isin, symbol, trade_date, balanced_quantity.
-    from_date : date, optional
-        Start date for fetching actions. If None, uses the last saved date.
-
-    Returns
-    -------
-    list[dict]
-        Each dict has: action_type, stock, isin, date, details, quantity, raw_data.
+):
+    """
+    Progressive generator version of fetch_pending_corporate_actions.
+    Yields dicts with 'status' (str) and 'progress' (int 0-100).
+    Final yield contains 'data' (list[dict]).
     """
     (
         dividend_data,
@@ -371,37 +326,154 @@ def fetch_pending_corporate_actions(
     ) = _read_local_corporate_actions_data()
 
     effective_date = from_date if from_date is not None else last_date
-    log.info("Fetching pending corporate actions from %s", effective_date)
-
     pending_actions: List[Dict] = []
 
-    for stock_id in trade_data[col.ISIN].unique():
-        if pd.isna(stock_id):
+    unique_isins = [isin for isin in trade_data[col.ISIN].unique() if not pd.isna(isin)]
+    # Filter trades without ISIN too
+    if trade_data[col.ISIN].isna().any():
+        unique_isins.append(None)
+
+    total_stocks = len(unique_isins)
+
+    for i, stock_id in enumerate(unique_isins):
+        if stock_id is None:
             stock_trade_data = trade_data[trade_data[col.ISIN].isna()]
+            display_name = "Stocks without ISIN"
         else:
             stock_trade_data = trade_data[trade_data[col.ISIN].eq(stock_id)]
+            display_name = (
+                stock_trade_data[col.SYMBOL].iloc[0]
+                if not stock_trade_data.empty
+                else str(stock_id)
+            )
+
+        progress = int((i / total_stocks) * 100) if total_stocks > 0 else 0
+        yield {"status": f"Checking {display_name}...", "progress": progress}
 
         if stock_trade_data.empty:
             continue
 
+        # 1. Fetch from YFinance
         symbol = stock_trade_data[col.SYMBOL].iloc[0]
-        actions_data_obj = extract_corporate_actions(stock_id, symbol=symbol)
-        actions_data = actions_data_obj.actions
-        stock_name = actions_data_obj.get_ticker_name()
+        try:
+            actions_data_obj = extract_corporate_actions(
+                stock_id if stock_id else symbol, symbol=symbol
+            )
+            actions_data = actions_data_obj.actions
+            stock_name = actions_data_obj.get_ticker_name()
+        except Exception as e:
+            log.warning("YFinance fetch failed for %s: %s", display_name, e)
+            actions_data = pd.DataFrame()
+            stock_name = display_name
 
-        if actions_data.empty:
-            if const.USE_WEBSCRAPPING:
-                try:
-                    all_actions = extract_all_corporate_actions(stock_name)
-                except Exception as e:
-                    log.warning("NSE scraping failed for %s: %s", stock_name, e)
-                    continue
+        # Track dates for which dividends are already found from YFinance
+        yfin_div_dates = set()
 
-                # Dividends from NSE
-                div_df = all_actions.get(const.DIVIDEND, pd.DataFrame())
-                if not div_df.empty:
-                    for dt, row in div_df[
-                        div_df.index.date >= effective_date
+        if not actions_data.empty:
+            for dt, row in actions_data[
+                actions_data.index.date >= effective_date
+            ].iterrows():
+                applicable = stock_trade_data[
+                    stock_trade_data[col.TRADE_DATE].lt(dt.date())
+                ]
+                if (
+                    not applicable.empty
+                    and (qty := applicable[col.TOTAL_QUANTITY].iloc[-1]) > 0
+                ):
+                    if row[col.DIVIDEND] > 0:
+                        yfin_div_dates.add(dt.date())
+                        pending_actions.append(
+                            {
+                                "action_type": const.DIVIDEND,
+                                "stock": stock_name,
+                                "isin": stock_id,
+                                "date": dt,
+                                "details": f"₹{row[col.DIVIDEND]:.2f}/share",
+                                "quantity": qty,
+                                "raw_data": {
+                                    col.SYMBOL: stock_name,
+                                    col.ISIN: stock_id,
+                                    col.TRADE_DATE: dt,
+                                    col.QUANTITY: qty,
+                                    col.DIVIDEND_COL: row[col.DIVIDEND],
+                                    col.TRANSACTION_AMOUNT: qty * row[col.DIVIDEND],
+                                },
+                            }
+                        )
+
+                    if row[col.STOCK_SPLITS] > 0:
+                        new_qty = qty * (row[col.STOCK_SPLITS] - 1)
+                        pending_actions.append(
+                            {
+                                "action_type": const.STOCK_SPLIT,
+                                "stock": stock_name,
+                                "isin": stock_id,
+                                "date": dt,
+                                "details": f"Ratio {row[col.STOCK_SPLITS]}:1",
+                                "quantity": new_qty,
+                                "raw_data": {
+                                    col.SYMBOL: stock_name,
+                                    col.ISIN: stock_id,
+                                    col.TRADE_DATE: dt,
+                                    col.STOCK_SPLITS_COL: row[col.STOCK_SPLITS],
+                                    col.QUANTITY: new_qty,
+                                },
+                            }
+                        )
+                        # update total quantity for internal logic within this loop if needed
+                        stock_trade_data.loc[
+                            stock_trade_data[col.TRADE_DATE].gt(dt.date()),
+                            col.TOTAL_QUANTITY,
+                        ] = (
+                            stock_trade_data[col.TOTAL_QUANTITY] + new_qty
+                        )
+
+        # 2. Fetch from NSE Webscraping (Supplementary)
+        if const.USE_WEBSCRAPPING:
+            try:
+                all_actions = extract_all_corporate_actions(stock_name)
+            except Exception as e:
+                log.warning("NSE scraping failed for %s: %s", stock_name, e)
+                all_actions = {}
+
+            # Dividends from NSE (avoid duplicates from YFinance)
+            div_df = all_actions.get(const.DIVIDEND, pd.DataFrame())
+            if not div_df.empty:
+                for dt, row in div_df[div_df.index.date >= effective_date].iterrows():
+                    if dt.date() in yfin_div_dates:
+                        continue
+                    applicable = stock_trade_data[
+                        stock_trade_data[col.TRADE_DATE].lt(dt.date())
+                    ]
+                    if (
+                        not applicable.empty
+                        and (qty := applicable[col.TOTAL_QUANTITY].iloc[-1]) > 0
+                    ):
+                        pending_actions.append(
+                            {
+                                "action_type": const.DIVIDEND,
+                                "stock": stock_name,
+                                "isin": stock_id,
+                                "date": dt,
+                                "details": f"₹{row[col.DIVIDEND]:.2f}/share",
+                                "quantity": qty,
+                                "raw_data": {
+                                    col.SYMBOL: stock_name,
+                                    col.ISIN: stock_id,
+                                    col.TRADE_DATE: dt,
+                                    col.QUANTITY: qty,
+                                    col.DIVIDEND_COL: row[col.DIVIDEND],
+                                    col.TRANSACTION_AMOUNT: qty * row[col.DIVIDEND],
+                                },
+                            }
+                        )
+
+            # Bonus, Merger / Demerger
+            for key in (const.BONUS, const.MERGER, const.DEMERGER):
+                act_df = all_actions.get(key, pd.DataFrame())
+                if not act_df.empty:
+                    for dt, row in act_df[
+                        act_df.index.date >= effective_date
                     ].iterrows():
                         applicable = stock_trade_data[
                             stock_trade_data[col.TRADE_DATE].lt(dt.date())
@@ -410,47 +482,17 @@ def fetch_pending_corporate_actions(
                             not applicable.empty
                             and (qty := applicable[col.TOTAL_QUANTITY].iloc[-1]) > 0
                         ):
+                            subject = row.get("subject", key.capitalize())
                             pending_actions.append(
                                 {
-                                    "action_type": const.DIVIDEND,
-                                    "stock": stock_name,
-                                    "isin": stock_id,
-                                    "date": dt,
-                                    "details": f"₹{row[col.DIVIDEND]:.2f}/share",
-                                    "quantity": qty,
-                                    "raw_data": {
-                                        col.SYMBOL: stock_name,
-                                        col.ISIN: stock_id,
-                                        col.TRADE_DATE: dt,
-                                        col.QUANTITY: qty,
-                                        col.DIVIDEND_COL: row[col.DIVIDEND],
-                                        col.TRANSACTION_AMOUNT: qty * row[col.DIVIDEND],
-                                    },
-                                }
-                            )
-
-                # Bonus from NSE
-                bonus_df = all_actions.get(const.BONUS, pd.DataFrame())
-                if not bonus_df.empty:
-                    for dt, row in bonus_df[
-                        bonus_df.index.date >= effective_date
-                    ].iterrows():
-                        applicable = stock_trade_data[
-                            stock_trade_data[col.TRADE_DATE].lt(dt.date())
-                        ]
-                        if (
-                            not applicable.empty
-                            and (qty := applicable[col.TOTAL_QUANTITY].iloc[-1]) > 0
-                        ):
-                            subject = row.get("subject", "Bonus")
-                            pending_actions.append(
-                                {
-                                    "action_type": const.BONUS,
+                                    "action_type": key,
                                     "stock": stock_name,
                                     "isin": stock_id,
                                     "date": dt,
                                     "details": str(subject),
-                                    "quantity": qty,
+                                    "quantity": (
+                                        qty if key != const.DEMERGER else 0
+                                    ),  # Demerger starts with 0 for incomplete
                                     "raw_data": {
                                         col.SYMBOL: stock_name,
                                         col.TRADE_DATE: dt,
@@ -459,97 +501,8 @@ def fetch_pending_corporate_actions(
                                 }
                             )
 
-                # Merger / Demerger from NSE
-                for key in (const.MERGER, const.DEMERGER):
-                    act_df = all_actions.get(key, pd.DataFrame())
-                    if not act_df.empty:
-                        for dt, row in act_df[
-                            act_df.index.date >= effective_date
-                        ].iterrows():
-                            applicable = stock_trade_data[
-                                stock_trade_data[col.TRADE_DATE].lt(dt.date())
-                            ]
-                            if (
-                                not applicable.empty
-                                and (qty := applicable[col.TOTAL_QUANTITY].iloc[-1]) > 0
-                            ):
-                                subject = row.get("subject", key.capitalize())
-                                pending_actions.append(
-                                    {
-                                        "action_type": key,
-                                        "stock": stock_name,
-                                        "isin": stock_id,
-                                        "date": dt,
-                                        "details": str(subject),
-                                        "quantity": qty,
-                                        "raw_data": {
-                                            col.SYMBOL: stock_name,
-                                            col.TRADE_DATE: dt,
-                                            col.QUANTITY: 0,
-                                        },
-                                    }
-                                )
-            continue
-
-        # yfinance-based actions
-        for dt, row in actions_data[
-            actions_data.index.date >= effective_date
-        ].iterrows():
-            applicable = stock_trade_data[
-                stock_trade_data[col.TRADE_DATE].lt(dt.date())
-            ]
-            if (
-                len(applicable) > 0
-                and (qty := applicable[col.TOTAL_QUANTITY].iloc[-1]) > 0
-            ):
-                if row[col.DIVIDEND] > 0:
-                    pending_actions.append(
-                        {
-                            "action_type": const.DIVIDEND,
-                            "stock": stock_name,
-                            "isin": stock_id,
-                            "date": dt,
-                            "details": f"₹{row[col.DIVIDEND]:.2f}/share",
-                            "quantity": qty,
-                            "raw_data": {
-                                col.SYMBOL: stock_name,
-                                col.ISIN: stock_id,
-                                col.TRADE_DATE: dt,
-                                col.QUANTITY: qty,
-                                col.DIVIDEND_COL: row[col.DIVIDEND],
-                                col.TRANSACTION_AMOUNT: qty * row[col.DIVIDEND],
-                            },
-                        }
-                    )
-
-                if row[col.STOCK_SPLITS] > 0:
-                    new_qty = qty * (row[col.STOCK_SPLITS] - 1)
-                    pending_actions.append(
-                        {
-                            "action_type": const.STOCK_SPLIT,
-                            "stock": stock_name,
-                            "isin": stock_id,
-                            "date": dt,
-                            "details": f"Ratio {row[col.STOCK_SPLITS]}:1",
-                            "quantity": new_qty,
-                            "raw_data": {
-                                col.SYMBOL: stock_name,
-                                col.ISIN: stock_id,
-                                col.TRADE_DATE: dt,
-                                col.STOCK_SPLITS_COL: row[col.STOCK_SPLITS],
-                                col.QUANTITY: new_qty,
-                            },
-                        }
-                    )
-                    # update total quantity in stock trade data after split update
-                    stock_trade_data.loc[
-                        stock_trade_data[col.TRADE_DATE].gt(dt.date()),
-                        col.TOTAL_QUANTITY,
-                    ] = (
-                        stock_trade_data[col.TOTAL_QUANTITY] + new_qty
-                    )
-
-    # Buyback detection from ledger
+    # 3. Buyback detection from ledger
+    yield {"status": "Checking for Buybacks in Ledger...", "progress": 95}
     try:
         new_buybacks = automatic_update_buyback_from_ledger(trade_data)
         for _, bb_row in new_buybacks.iterrows():
@@ -571,8 +524,21 @@ def fetch_pending_corporate_actions(
     except Exception as e:
         log.warning("Buyback detection failed: %s", e)
 
-    log.info("Found %d pending corporate actions", len(pending_actions))
-    return pending_actions
+    yield {"status": "Complete", "progress": 100, "data": pending_actions}
+
+
+def fetch_pending_corporate_actions(
+    trade_data: pd.DataFrame, from_date: date = None
+) -> List[Dict]:
+    """
+    Synchronous wrapper for fetch_pending_corporate_actions_progressive.
+    """
+    generator = fetch_pending_corporate_actions_progressive(trade_data, from_date)
+    result = []
+    for update in generator:
+        if "data" in update:
+            result = update["data"]
+    return result
 
 
 def delete_all_corporate_actions_data() -> Path:

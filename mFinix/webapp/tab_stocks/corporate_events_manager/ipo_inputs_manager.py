@@ -178,7 +178,6 @@ class IPOInputsManager(CorporateEventHandler):
             self.widgets["price_input"],
             pn.Row(
                 self.widgets["submit_button"],
-                self.widgets["cancel_button"],
                 align="end",
             ),
         ]

@@ -34,3 +34,8 @@ PNL_PERCENTAGE: str = "pnl_percentage"
 HOLDING_QUANTITY: str = "holding_quantity"
 IS_DISCREPANCY: str = "is_discrepancy"
 STATUS_ICON: str = "status_icon"
+
+# demerger specific columns
+PARENT_SYMBOL: str = "parent_symbol"
+PARENT_QUANTITY: str = "parent_quantity"
+RATIO: str = "ratio"

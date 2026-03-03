@@ -119,3 +119,7 @@ class PanelModal:
         """Handle back button click."""
         if self._back_cb:
             self._back_cb()
+
+    def close(self) -> None:
+        """Close the modal."""
+        self.dashboard.open_modal = False

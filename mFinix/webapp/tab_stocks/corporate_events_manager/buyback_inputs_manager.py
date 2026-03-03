@@ -21,7 +21,6 @@ class BuybackInputsManager(CorporateEventHandler):
             self.widgets["quantity_input"],
             pn.Row(
                 self.widgets["submit_button"],
-                self.widgets["cancel_button"],
                 align="end",
             ),
         ]

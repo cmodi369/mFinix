@@ -487,10 +487,13 @@ class MergerParser(DataParserInterface):
                 return pd.DataFrame()
 
             corp_df = pd.DataFrame(response_data)
+            # Filter for merger/amalgamation but EXCLUDE demergers
+            # Note: .contains("Merger") matches "Demerger", so we must explicitly exclude it
             merger_data = corp_df[
                 corp_df["subject"].str.contains(
                     "Merger|Amalgamation", na=False, case=False
                 )
+                & ~corp_df["subject"].str.contains("Demerger", na=False, case=False)
             ]
 
             if merger_data.empty:

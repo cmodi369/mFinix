@@ -53,7 +53,7 @@ class TabStocks:
 
         # initialize auto corporate actions manager
         self.auto_corp_manager = AutoCorporateActionsManager(
-            self.tab_data, self.tab_widgets
+            self.tab_data, self.tab_widgets, panel_modal=self.panel_modal
         )
 
         # initialize manual data fetch manager
@@ -315,7 +315,7 @@ class TabStocks:
         self.manual_data_manager.initialize()
         if self.panel_modal:
             self.panel_modal.open(
-                self.manual_data_manager.layout, "📥 Update Data from Zerodha"
+                self.manual_data_manager.layout, "Update Data from Zerodha"
             )
         else:
             self.layout.objects = [self._menu_layout] + self.manual_data_manager.layout
