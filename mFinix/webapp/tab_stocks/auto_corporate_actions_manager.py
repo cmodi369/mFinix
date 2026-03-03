@@ -71,12 +71,16 @@ class AutoCorporateActionsManager:
             sizing_mode="stretch_width",
         )
 
+        # Preview Area
+        self._preview_area = self._create_preview_pane()
+
         # UI Layout areas
         self._content_area = pn.Column(sizing_mode="stretch_width")
         self._nav_area = pn.Row(sizing_mode="stretch_width")
 
         self._layout = pn.Column(
             self.wizard_header,
+            self._preview_area,
             self.progress_logger_pane,
             self._content_area,
             pn.layout.Divider(),
@@ -133,6 +137,45 @@ class AutoCorporateActionsManager:
             "", sizing_mode="stretch_width", margin=(10, 0)
         )
 
+    def _create_preview_pane(self) -> pn.Column:
+        """Create a preview pane showing types of actions to be searched."""
+        chips = []
+        for tab in _ACTION_TABS:
+            label = tab["label"]
+            color = tab["color"]
+            # Creating a "chip" style using HTML/Markdown
+            chip_html = f"""
+            <div style="
+                background-color: {color}22;
+                color: {color};
+                border: 1px solid {color};
+                border-radius: 16px;
+                padding: 4px 12px;
+                margin: 4px;
+                font-size: 0.85rem;
+                font-weight: 600;
+                display: inline-block;
+            ">
+                {label}
+            </div>
+            """
+            chips.append(chip_html)
+
+        return pn.Column(
+            pn.pane.Markdown("### 📋 Preview: Actions to Search"),
+            pn.pane.HTML(
+                f"<div style='display: flex; flex-wrap: wrap;'>{''.join(chips)}</div>",
+                sizing_mode="stretch_width",
+            ),
+            pn.pane.Markdown(
+                "*Scanning for dividends, splits, bonuses, mergers, and demergers across your portfolio.*",
+                styles={"color": "#7f8c8d", "font-size": "0.85rem", "font-style": "italic"},
+            ),
+            pn.layout.Divider(),
+            sizing_mode="stretch_width",
+            visible=True,
+        )
+
     @property
     def layout(self) -> list:
         """Return the main layout container."""
@@ -178,6 +221,7 @@ class AutoCorporateActionsManager:
         self.widgets["status_text"].object = ""
 
         self.progress_logger_pane.visible = True
+        self._preview_area.visible = False
         self.progress_logger.clear()
         self.progress_logger.log("🔍 Initializing fetch...", "info")
 
