@@ -411,9 +411,6 @@ def fetch_pending_corporate_actions_progressive(
 
     total_stocks = len(unique_isins)
 
-    # TODO: test
-    unique_isins = ["INE002A01018"]
-
     for i, stock_id in enumerate(unique_isins):
         if stock_id is None:
             stock_trade_data = trade_data[trade_data[col.ISIN].isna()]

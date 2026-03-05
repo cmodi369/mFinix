@@ -239,7 +239,7 @@ class AutoCorporateActionsManager:
                 update = next(generator)
                 if "data" in update:
                     self._pending_actions = update["data"]
-                    self.progress_logger.complete("Fetching complete!")
+                    self.progress_logger.complete("Fetching complete! (100%)")
 
                     if not self._pending_actions:
                         self.widgets["status_text"].object = (
@@ -254,7 +254,11 @@ class AutoCorporateActionsManager:
                             self._start_wizard, period=500, count=1
                         )
                 else:
-                    self.progress_logger.log(update["status"], "info")
+                    self.progress_logger.log(
+                        update["status"], 
+                        "info", 
+                        progress=update.get("progress")
+                    )
                     pn.state.add_periodic_callback(_fetch_step, period=50, count=1)
             except StopIteration:
                 pass

@@ -1,5 +1,7 @@
 import panel as pn
 import param
+from datetime import datetime
+import param
 
 
 class ProgressLogger(pn.viewable.Viewer):
@@ -10,6 +12,7 @@ class ProgressLogger(pn.viewable.Viewer):
     def __init__(self, **params):
         super().__init__(**params)
         self._logs = []
+        self._start_time = None
         self._layout = pn.pane.HTML(
             self._get_html(),
             sizing_mode="stretch_width",
@@ -81,7 +84,22 @@ class ProgressLogger(pn.viewable.Viewer):
 
         return "".join(formatted_logs)
 
-    def log(self, message: str, status: str = "info"):
+    def log(self, message: str, status: str = "info", progress: int = None):
+        if self._start_time is None:
+            self._start_time = datetime.now()
+
+        if progress is not None:
+            if 0 < progress < 100:
+                elapsed = (datetime.now() - self._start_time).total_seconds()
+                eta_seconds = int((elapsed / progress) * (100 - progress))
+                if eta_seconds > 60:
+                    eta_str = f" | ETA {eta_seconds // 60}m {eta_seconds % 60}s"
+                else:
+                    eta_str = f" | ETA {eta_seconds}s"
+                message = f"{message} ({progress}%{eta_str})"
+            else:
+                message = f"{message} ({progress}%)"
+
         self._logs.append({"msg": message, "status": status})
         self._layout.object = self._get_html()
 
@@ -99,6 +117,7 @@ class ProgressLogger(pn.viewable.Viewer):
 
     def clear(self):
         self._logs = []
+        self._start_time = datetime.now()
         self._layout.object = self._get_html()
 
     def __panel__(self):
