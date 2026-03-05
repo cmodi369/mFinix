@@ -46,63 +46,86 @@ _TABLE_COLUMNS = ["Stock", "Type", "Date", "Details", "Quantity"]
 
 class FetchConfirmationManager(param.Parameterized):
     """UI controller for the conditional fetch modal logic."""
+
     action_type = param.Selector(
         objects=["Update/Append", "Replace Range", "Full Reset"],
         default="Update/Append",
-        doc="Select how to handle existing corporate action data"
+        doc="Select how to handle existing corporate action data",
     )
 
-    def __init__(self, manager, start_date, end_date, **params):
+    def __init__(self, manager, start_date, end_date, stock_symbol=None, **params):
         super().__init__(**params)
         self.manager = manager
         self.start_date = start_date
         self.end_date = end_date
+        self.stock_symbol = stock_symbol
 
         self.radio_group = pn.widgets.RadioButtonGroup.from_param(
-            self.param.action_type, button_type="primary", button_style="outline", width=400
+            self.param.action_type,
+            button_type="primary",
+            button_style="outline",
+            width=400,
         )
-        self.confirm_btn = pn.widgets.Button(name="✅ Confirm & Fetch", button_type="success", width=150)
-        self.cancel_btn = pn.widgets.Button(name="❌ Cancel", button_type="danger", width=150)
+        self.confirm_btn = pn.widgets.Button(
+            name="✅ Confirm & Fetch", button_type="success", width=150
+        )
+        self.cancel_btn = pn.widgets.Button(
+            name="❌ Cancel", button_type="danger", width=150
+        )
 
         self.confirm_btn.on_click(self._on_confirm)
         self.cancel_btn.on_click(self._on_cancel)
 
     @param.depends("action_type")
     def description_view(self):
+        target = f"**{self.stock_symbol}**" if self.stock_symbol else "all stocks"
         if self.action_type == "Update/Append":
-            msg = "✅ **Update/Append**: Will fetch new corporate actions and add them to existing data without deleting anything."
+            msg = f"✅ **Update/Append**: Will fetch new corporate actions for {target} and add them to existing data without deleting anything."
         elif self.action_type == "Replace Range":
-            msg = f"🔄 **Replace Range**: Will delete existing corporate actions between **{self.start_date}** and **{self.end_date}**, then fetch new ones."
+            msg = f"🔄 **Replace Range**: Will delete existing corporate actions for {target} between **{self.start_date}** and **{self.end_date}**, then fetch new ones."
         else:
-            msg = "⚠️ **Full Reset**: This will **completely delete ALL** existing corporate actions data before fetching new ones."
-        
+            msg = f"⚠️ **Full Reset**: This will **completely delete ALL** existing corporate actions data for {target} before fetching new ones."
+
         return pn.pane.Markdown(msg, height=60, margin=(10, 0))
 
     def view(self):
+        target_info = (
+            f" Target: **{self.stock_symbol}**"
+            if self.stock_symbol
+            else " Target: **All Stocks**"
+        )
         return pn.Column(
-            pn.pane.Markdown("### Select Data Fetch Strategy"),
+            pn.pane.Markdown(f"### Select Data Fetch Strategy\n{target_info}"),
             self.radio_group,
             self.description_view,
             pn.layout.Divider(),
-            pn.Row(pn.Spacer(sizing_mode="stretch_width"), self.cancel_btn, self.confirm_btn, align="end"),
-            sizing_mode="stretch_width"
+            pn.Row(
+                pn.Spacer(sizing_mode="stretch_width"),
+                self.cancel_btn,
+                self.confirm_btn,
+                align="end",
+            ),
+            sizing_mode="stretch_width",
         )
 
     def _on_confirm(self, event):
         strategy = self.action_type
         if self.manager.panel_modal:
             self.manager.panel_modal.open(
-                content=self.manager.layout,
-                title="⚡ Auto Corporate Actions"
+                content=self.manager.layout, title="⚡ Auto Corporate Actions"
             )
-        self.manager._execute_fetch(strategy=strategy, start_date=self.start_date, end_date=self.end_date)
+        self.manager._execute_fetch(
+            strategy=strategy,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            stock_symbol=self.stock_symbol,
+        )
 
     def _on_cancel(self, event):
         self.action_type = "Update/Append"
         if self.manager.panel_modal:
             self.manager.panel_modal.open(
-                content=self.manager.layout,
-                title="⚡ Auto Corporate Actions"
+                content=self.manager.layout, title="⚡ Auto Corporate Actions"
             )
         # Revert main UI state
         self.manager._reset_fetch_inputs()
@@ -146,7 +169,6 @@ class AutoCorporateActionsManager:
 
         self._layout = pn.Column(
             self.wizard_header,
-            self._preview_area,
             self.progress_logger_pane,
             self._content_area,
             pn.layout.Divider(),
@@ -169,6 +191,17 @@ class AutoCorporateActionsManager:
     def _create_widgets(self) -> None:
         """Create all UI widgets for the auto corporate actions flow."""
 
+        # --- Stock selection ---
+        unique_stocks = sorted(self.transactions_data[col.SYMBOL].unique().tolist())
+        self.widgets["stock_select"] = pn.widgets.AutocompleteInput(
+            name="Select Stock",
+            options=["All Stocks"] + unique_stocks,
+            value="All Stocks",
+            placeholder="Search for a stock...",
+            case_sensitive=False,
+            width=300,
+        )
+
         # --- Source selection ---
         self.widgets["source_radio"] = pn.widgets.RadioButtonGroup(
             name="Fetch Mode",
@@ -176,17 +209,18 @@ class AutoCorporateActionsManager:
             value="From Last Date",
             button_type="primary",
             button_style="outline",
+            width=700,
         )
 
         self.widgets["start_date_picker"] = pn.widgets.DatePicker(
-            name="Start Date",
+            name="START DATE",
             value=date.today(),
             end=date.today(),
             visible=False,
             styles={"font-weight": "bold !important"},
         )
         self.widgets["end_date_picker"] = pn.widgets.DatePicker(
-            name="End Date",
+            name="END DATE",
             value=date.today(),
             end=date.today(),
             visible=False,
@@ -200,9 +234,10 @@ class AutoCorporateActionsManager:
         )
 
         self.widgets["fetch_button"] = pn.widgets.Button(
-            name="Fetch Actions",
+            name="Initialize Fetch",
+            icon="cloud-download",
             button_type="primary",
-            width=140,
+            width=300,
             styles={"font-weight": "bold"},
         )
 
@@ -216,17 +251,17 @@ class AutoCorporateActionsManager:
         for tab in _ACTION_TABS:
             label = tab["label"]
             color = tab["color"]
-            # Creating a "chip" style using HTML/Markdown
+            # Modern chip style as per mockup
             chip_html = f"""
             <div style="
-                background-color: {color}22;
-                color: {color};
                 border: 1px solid {color};
-                border-radius: 16px;
-                padding: 4px 12px;
+                color: {color};
+                background-color: {color}08;
+                border-radius: 20px;
+                padding: 6px 16px;
                 margin: 4px;
                 font-size: 0.85rem;
-                font-weight: 600;
+                font-weight: 500;
                 display: inline-block;
             ">
                 {label}
@@ -235,16 +270,18 @@ class AutoCorporateActionsManager:
             chips.append(chip_html)
 
         return pn.Column(
-            pn.pane.Markdown("### 📋 Preview: Actions to Search"),
+            pn.Row(
+                pn.pane.Markdown(
+                    "### PREVIEW: ACTIONS",
+                    styles={"font-size": "0.9rem", "color": "#7f8c8d", "margin": "0"},
+                ),
+                sizing_mode="stretch_width",
+                margin=(10, 0, 5, 0),
+            ),
             pn.pane.HTML(
                 f"<div style='display: flex; flex-wrap: wrap;'>{''.join(chips)}</div>",
                 sizing_mode="stretch_width",
             ),
-            pn.pane.Markdown(
-                "*Scanning for dividends, splits, bonuses, mergers, and demergers across your portfolio.*",
-                styles={"color": "#7f8c8d", "font-size": "0.85rem", "font-style": "italic"},
-            ),
-            pn.layout.Divider(),
             sizing_mode="stretch_width",
             visible=True,
         )
@@ -252,28 +289,36 @@ class AutoCorporateActionsManager:
     @property
     def layout(self) -> list:
         """Return the main layout container."""
-        self._fetch_row = pn.Row(
+
+        # Hide date pickers if not in "Between 2 Dates" mode
+        is_between = self.widgets["source_radio"].value == "Between 2 Dates"
+        self.widgets["start_date_picker"].visible = is_between
+        self.widgets["end_date_picker"].visible = is_between
+
+        return [
             pn.Column(
+                pn.pane.Markdown(
+                    "#### Select Stock",
+                    styles={"margin": "0 0 5px 0", "color": "#34495e"},
+                ),
+                self.widgets["stock_select"],
+                pn.Spacer(height=10),
+                pn.pane.Markdown(
+                    "#### Fetch Mode",
+                    styles={"margin": "0 0 5px 0", "color": "#34495e"},
+                ),
                 self.widgets["source_radio"],
                 self.widgets["last_update_text"],
                 pn.Row(
                     self.widgets["start_date_picker"],
                     self.widgets["end_date_picker"],
+                    sizing_mode="stretch_width",
+                    visible=is_between,
                 ),
-                margin=(0, 20, 0, 0),
-            ),
-            pn.Column(
                 pn.Spacer(height=20),
                 self.widgets["fetch_button"],
-            ),
-            sizing_mode="stretch_width",
-            styles={"align-items": "flex-end"},
-            name="fetch_row",
-        )
-        return [
-            pn.Column(
-                # Fetch controls container
-                self._fetch_row,
+                pn.layout.Divider(),
+                self._preview_area,
                 pn.layout.Divider(),
                 self.widgets["status_text"],
                 self._layout,
@@ -290,11 +335,17 @@ class AutoCorporateActionsManager:
         is_between = event.new == "Between 2 Dates"
         self.widgets["start_date_picker"].visible = is_between
         self.widgets["end_date_picker"].visible = is_between
+        # Trigger layout refresh
+        if self.panel_modal:
+            self.panel_modal.open(self.layout, "⚡ Auto Corporate Actions")
 
     def _on_fetch_click(self, event) -> None:
         """Trigger fetch logic. If between 2 dates, open modal. Else execute."""
+        stock_val = self.widgets["stock_select"].value
+        stock_symbol = None if stock_val == "All Stocks" else stock_val
+
         if self.widgets["source_radio"].value == "From Last Date":
-            self._execute_fetch(strategy="Update/Append")
+            self._execute_fetch(strategy="Update/Append", stock_symbol=stock_symbol)
         else:
             start_date = self.widgets["start_date_picker"].value
             end_date = self.widgets["end_date_picker"].value
@@ -304,10 +355,13 @@ class AutoCorporateActionsManager:
 
             self.widgets["fetch_button"].disabled = True
             self.widgets["source_radio"].disabled = True
-            
+            self.widgets["stock_select"].disabled = True
+
             # Use parameterized manager for the modal
-            self._fetch_confirm_mgr = FetchConfirmationManager(self, start_date, end_date)
-            
+            self._fetch_confirm_mgr = FetchConfirmationManager(
+                self, start_date, end_date, stock_symbol
+            )
+
             self.panel_modal.open(
                 content=[self._fetch_confirm_mgr.view()],
                 title="Fetch Options",
@@ -318,10 +372,17 @@ class AutoCorporateActionsManager:
         """Called when back button on confirmation modal is clicked."""
         self._fetch_confirm_mgr._on_cancel(None)
 
-    def _execute_fetch(self, strategy: str, start_date: date = None, end_date: date = None) -> None:
+    def _execute_fetch(
+        self,
+        strategy: str,
+        start_date: date = None,
+        end_date: date = None,
+        stock_symbol: str = None,
+    ) -> None:
         """Execute progressive fetch based on strategy and update the UI logger."""
         self.widgets["fetch_button"].disabled = True
         self.widgets["source_radio"].disabled = True
+        self.widgets["stock_select"].disabled = True
         if "start_date_picker" in self.widgets:
             self.widgets["start_date_picker"].disabled = True
             self.widgets["end_date_picker"].disabled = True
@@ -330,14 +391,18 @@ class AutoCorporateActionsManager:
         self.progress_logger_pane.visible = True
         self._preview_area.visible = False
         self.progress_logger.clear()
-        self.progress_logger.log(f"🔍 Initializing fetch (Strategy: {strategy})...", "info")
+        self.progress_logger.log(
+            f"🔍 Initializing fetch (Strategy: {strategy})...", "info"
+        )
 
         from_date = None
         to_date = None
         if strategy == "Full Reset":
-            delete_all_corporate_actions_data()
+            delete_all_corporate_actions_data(stock_symbol=stock_symbol)
         elif strategy == "Replace Range" and start_date and end_date:
-            delete_corporate_actions_range(start_date, end_date)
+            delete_corporate_actions_range(
+                start_date, end_date, stock_symbol=stock_symbol
+            )
             from_date = start_date
             to_date = end_date
         elif strategy == "Update/Append":
@@ -346,7 +411,7 @@ class AutoCorporateActionsManager:
                 to_date = end_date
 
         generator = fetch_pending_corporate_actions_progressive(
-            self.transactions_data, from_date, to_date
+            self.transactions_data, from_date, to_date, stock_symbol=stock_symbol
         )
 
         def _fetch_step():
@@ -357,13 +422,19 @@ class AutoCorporateActionsManager:
                     self.progress_logger.complete("Fetching complete! (100%)")
 
                     if not self._pending_actions:
-                        self.widgets["status_text"].object = "**No pending actions found.**"
+                        self.widgets["status_text"].object = (
+                            "**No pending actions found.**"
+                        )
                         self.progress_logger_pane.visible = False
                         self._reset_fetch_inputs()
                     else:
-                        pn.state.add_periodic_callback(self._start_wizard, period=500, count=1)
+                        pn.state.add_periodic_callback(
+                            self._start_wizard, period=500, count=1
+                        )
                 else:
-                    self.progress_logger.log(update["status"], "info", progress=update.get("progress"))
+                    self.progress_logger.log(
+                        update["status"], "info", progress=update.get("progress")
+                    )
                     pn.state.add_periodic_callback(_fetch_step, period=50, count=1)
             except StopIteration:
                 pass
@@ -378,6 +449,7 @@ class AutoCorporateActionsManager:
         """Reset the inputs if we abort/cancel/finish empty."""
         self.widgets["fetch_button"].disabled = False
         self.widgets["source_radio"].disabled = False
+        self.widgets["stock_select"].disabled = False
         if "start_date_picker" in self.widgets:
             self.widgets["start_date_picker"].disabled = False
             self.widgets["end_date_picker"].disabled = False

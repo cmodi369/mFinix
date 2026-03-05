@@ -1,6 +1,6 @@
-import panel as pn
-import param
 from datetime import datetime
+
+import panel as pn
 import param
 
 

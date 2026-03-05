@@ -364,9 +364,7 @@ class _PendingActionsRegistry:
                     and self._key(existing["stock"], existing["date"]) == key
                 ):
                     existing["action_type"] = to_type
-                    existing["details"] = new_action.get(
-                        "details", existing["details"]
-                    )
+                    existing["details"] = new_action.get("details", existing["details"])
                     log.info(
                         "Reclassified %s -> %s for %s on %s",
                         from_type,
@@ -383,7 +381,10 @@ class _PendingActionsRegistry:
 
 
 def fetch_pending_corporate_actions_progressive(
-    trade_data: pd.DataFrame, from_date: date = None, to_date: date = None
+    trade_data: pd.DataFrame,
+    from_date: date = None,
+    to_date: date = None,
+    stock_symbol: str = None,
 ):
     """
     Progressive generator version of fetch_pending_corporate_actions.
@@ -404,10 +405,19 @@ def fetch_pending_corporate_actions_progressive(
     effective_date = from_date if from_date is not None else last_date
     registry = _PendingActionsRegistry()
 
-    unique_isins = [isin for isin in trade_data[col.ISIN].unique() if not pd.isna(isin)]
-    # Filter trades without ISIN too
-    if trade_data[col.ISIN].isna().any():
-        unique_isins.append(None)
+    if stock_symbol:
+        unique_isins = (
+            trade_data[trade_data[col.SYMBOL] == stock_symbol][col.ISIN]
+            .unique()
+            .tolist()
+        )
+    else:
+        unique_isins = [
+            isin for isin in trade_data[col.ISIN].unique() if not pd.isna(isin)
+        ]
+        # Filter trades without ISIN too
+        if trade_data[col.ISIN].isna().any():
+            unique_isins.append(None)
 
     total_stocks = len(unique_isins)
 
@@ -431,18 +441,26 @@ def fetch_pending_corporate_actions_progressive(
 
         # Check if stock was in portfolio during [effective_date, to_date]
         _check_end_date = to_date if to_date else date.today()
-        applicable_trades_end = stock_trade_data[stock_trade_data[col.TRADE_DATE] <= _check_end_date]
+        applicable_trades_end = stock_trade_data[
+            stock_trade_data[col.TRADE_DATE] <= _check_end_date
+        ]
         if applicable_trades_end.empty:
             continue
-            
-        applicable_trades_start = stock_trade_data[stock_trade_data[col.TRADE_DATE] < effective_date]
-        qty_at_start = applicable_trades_start[col.TOTAL_QUANTITY].iloc[-1] if not applicable_trades_start.empty else 0
-        
-        trades_during = stock_trade_data[
-            (stock_trade_data[col.TRADE_DATE] >= effective_date) & 
-            (stock_trade_data[col.TRADE_DATE] <= _check_end_date)
+
+        applicable_trades_start = stock_trade_data[
+            stock_trade_data[col.TRADE_DATE] < effective_date
         ]
-        
+        qty_at_start = (
+            applicable_trades_start[col.TOTAL_QUANTITY].iloc[-1]
+            if not applicable_trades_start.empty
+            else 0
+        )
+
+        trades_during = stock_trade_data[
+            (stock_trade_data[col.TRADE_DATE] >= effective_date)
+            & (stock_trade_data[col.TRADE_DATE] <= _check_end_date)
+        ]
+
         if qty_at_start <= 0 and trades_during.empty:
             continue
 
@@ -629,12 +647,17 @@ def fetch_pending_corporate_actions_progressive(
 
 
 def fetch_pending_corporate_actions(
-    trade_data: pd.DataFrame, from_date: date = None, to_date: date = None
+    trade_data: pd.DataFrame,
+    from_date: date = None,
+    to_date: date = None,
+    stock_symbol: str = None,
 ) -> List[Dict]:
     """
     Synchronous wrapper for fetch_pending_corporate_actions_progressive.
     """
-    generator = fetch_pending_corporate_actions_progressive(trade_data, from_date, to_date)
+    generator = fetch_pending_corporate_actions_progressive(
+        trade_data, from_date, to_date, stock_symbol
+    )
     result = []
     for update in generator:
         if "data" in update:
@@ -642,11 +665,11 @@ def fetch_pending_corporate_actions(
     return result
 
 
-def delete_all_corporate_actions_data() -> Path:
+def delete_all_corporate_actions_data(stock_symbol: str = None) -> Path:
     """Delete all corporate actions CSV files after creating a backup.
 
-    Creates a timestamped backup directory under .data/backups/ before
-    removing the original files.
+    If `stock_symbol` is provided, filters the CSVs to delete only records for that stock
+    instead of deleting the entire file.
 
     Returns
     -------
@@ -654,7 +677,9 @@ def delete_all_corporate_actions_data() -> Path:
         Path to the backup directory created.
     """
     backup_dir = (
-        const.LOCAL_DATA_PATH / "backups" / datetime.now().strftime("%Y%m%d_%H%M%S")
+        const.LOCAL_DATA_PATH
+        / "backups"
+        / f"full_reset_{stock_symbol if stock_symbol else 'all'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     )
     backup_dir.mkdir(parents=True, exist_ok=True)
 
@@ -672,26 +697,47 @@ def delete_all_corporate_actions_data() -> Path:
         src = const.LOCAL_DATA_PATH / fname
         if src.exists():
             shutil.copy2(src, backup_dir / fname)
-            src.unlink()
-            log.info("Backed up and deleted %s", fname)
 
-    log.info("All corporate actions data backed up to %s and deleted", backup_dir)
+            if stock_symbol:
+                try:
+                    df = pd.read_csv(src)
+                    if not df.empty and col.SYMBOL in df.columns:
+                        filtered_df = df[df[col.SYMBOL] != stock_symbol]
+                        filtered_df.to_csv(src, index=False)
+                        log.info("Filtered out %s records from %s", stock_symbol, fname)
+                except Exception as e:
+                    log.warning(
+                        "Could not filter %s for %s reset: %s", fname, stock_symbol, e
+                    )
+            else:
+                src.unlink()
+                log.info("Backed up and deleted %s", fname)
+
+    log.info(
+        "Corporate actions data for %s backed up to %s and deleted/filtered",
+        stock_symbol or "all",
+        backup_dir,
+    )
     return backup_dir
 
 
-def delete_corporate_actions_range(start_date: date, end_date: date) -> Path:
+def delete_corporate_actions_range(
+    start_date: date, end_date: date, stock_symbol: str = None
+) -> Path:
     """Delete corporate actions between start_date and end_date.
 
-    Creates a timestamped backup directory under .data/backups/ before
-    filtering out the records.
-    
+    If `stock_symbol` is provided, filters the CSVs to delete only range records specifically for that stock
+    instead of replacing the range universally.
+
     Returns
     -------
     Path
         Path to the backup directory created.
     """
     backup_dir = (
-        const.LOCAL_DATA_PATH / "backups" / f"replace_range_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        const.LOCAL_DATA_PATH
+        / "backups"
+        / f"replace_range_{stock_symbol if stock_symbol else 'all'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     )
     backup_dir.mkdir(parents=True, exist_ok=True)
 
@@ -708,20 +754,43 @@ def delete_corporate_actions_range(start_date: date, end_date: date) -> Path:
         src = const.LOCAL_DATA_PATH / fname
         if src.exists():
             shutil.copy2(src, backup_dir / fname)
-            
+
             try:
                 df = pd.read_csv(src)
                 if not df.empty and col.TRADE_DATE in df.columns:
-                    df_dates = pd.to_datetime(df[col.TRADE_DATE], format="mixed").dt.date
-                    mask_outside = (df_dates < start_date) | (df_dates > end_date)
+                    df_dates = pd.to_datetime(
+                        df[col.TRADE_DATE], format="mixed"
+                    ).dt.date
+
+                    if stock_symbol and col.SYMBOL in df.columns:
+                        mask_outside = (
+                            (df_dates < start_date)
+                            | (df_dates > end_date)
+                            | (df[col.SYMBOL] != stock_symbol)
+                        )
+                    else:
+                        mask_outside = (df_dates < start_date) | (df_dates > end_date)
+
                     filtered_df = df[mask_outside]
                     filtered_df.to_csv(src, index=False)
-                    log.info("Filtered %d rows from %s (between %s and %s)", 
-                             len(df) - len(filtered_df), fname, start_date, end_date)
+                    log.info(
+                        "Filtered %d rows from %s (between %s and %s for %s)",
+                        len(df) - len(filtered_df),
+                        fname,
+                        start_date,
+                        end_date,
+                        stock_symbol or "all",
+                    )
             except Exception as e:
                 log.warning("Could not filter %s for range deletion: %s", fname, e)
 
-    log.info("Corporate actions between %s and %s backed up to %s and removed", start_date, end_date, backup_dir)
+    log.info(
+        "Corporate actions between %s and %s for %s backed up to %s and removed",
+        start_date,
+        end_date,
+        stock_symbol or "all",
+        backup_dir,
+    )
     return backup_dir
 
 
@@ -762,11 +831,9 @@ def save_approved_action(action: Dict) -> None:
 
     # Guard: skip if identical (symbol, date) already exists in CSV
     if not existing_df.empty and col.TRADE_DATE in existing_df.columns:
-        dup_mask = existing_df[col.SYMBOL].eq(
-            raw.get(col.SYMBOL)
-        ) & existing_df[col.TRADE_DATE].astype(str).eq(
-            str(raw.get(col.TRADE_DATE))
-        )
+        dup_mask = existing_df[col.SYMBOL].eq(raw.get(col.SYMBOL)) & existing_df[
+            col.TRADE_DATE
+        ].astype(str).eq(str(raw.get(col.TRADE_DATE)))
         if dup_mask.any():
             log.warning(
                 "Duplicate %s for %s on %s skipped in CSV",
