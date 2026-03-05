@@ -7,12 +7,14 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 import panel as pn
+import param
 
 import mFinix.constants.columns as col
 import mFinix.constants.constants as const
 import mFinix.webapp.webapp_constants as webapp_const
 from mFinix.core.corporate_actions import (
     delete_all_corporate_actions_data,
+    delete_corporate_actions_range,
     fetch_pending_corporate_actions_progressive,
     get_last_corporate_actions_update_date,
     save_approved_action,
@@ -40,6 +42,70 @@ _ACTION_TABS: List[Dict] = [
 
 # Columns shown in each per-type Tabulator
 _TABLE_COLUMNS = ["Stock", "Type", "Date", "Details", "Quantity"]
+
+
+class FetchConfirmationManager(param.Parameterized):
+    """UI controller for the conditional fetch modal logic."""
+    action_type = param.Selector(
+        objects=["Update/Append", "Replace Range", "Full Reset"],
+        default="Update/Append",
+        doc="Select how to handle existing corporate action data"
+    )
+
+    def __init__(self, manager, start_date, end_date, **params):
+        super().__init__(**params)
+        self.manager = manager
+        self.start_date = start_date
+        self.end_date = end_date
+
+        self.radio_group = pn.widgets.RadioButtonGroup.from_param(
+            self.param.action_type, button_type="primary", button_style="outline", width=400
+        )
+        self.confirm_btn = pn.widgets.Button(name="✅ Confirm & Fetch", button_type="success", width=150)
+        self.cancel_btn = pn.widgets.Button(name="❌ Cancel", button_type="danger", width=150)
+
+        self.confirm_btn.on_click(self._on_confirm)
+        self.cancel_btn.on_click(self._on_cancel)
+
+    @param.depends("action_type")
+    def description_view(self):
+        if self.action_type == "Update/Append":
+            msg = "✅ **Update/Append**: Will fetch new corporate actions and add them to existing data without deleting anything."
+        elif self.action_type == "Replace Range":
+            msg = f"🔄 **Replace Range**: Will delete existing corporate actions between **{self.start_date}** and **{self.end_date}**, then fetch new ones."
+        else:
+            msg = "⚠️ **Full Reset**: This will **completely delete ALL** existing corporate actions data before fetching new ones."
+        
+        return pn.pane.Markdown(msg, height=60, margin=(10, 0))
+
+    def view(self):
+        return pn.Column(
+            pn.pane.Markdown("### Select Data Fetch Strategy"),
+            self.radio_group,
+            self.description_view,
+            pn.layout.Divider(),
+            pn.Row(pn.Spacer(sizing_mode="stretch_width"), self.cancel_btn, self.confirm_btn, align="end"),
+            sizing_mode="stretch_width"
+        )
+
+    def _on_confirm(self, event):
+        strategy = self.action_type
+        if self.manager.panel_modal:
+            self.manager.panel_modal.open(
+                content=self.manager.layout,
+                title="⚡ Auto Corporate Actions"
+            )
+        self.manager._execute_fetch(strategy=strategy, start_date=self.start_date, end_date=self.end_date)
+
+    def _on_cancel(self, event):
+        self.action_type = "Update/Append"
+        if self.manager.panel_modal:
+            self.manager.panel_modal.open(
+                content=self.manager.layout,
+                title="⚡ Auto Corporate Actions"
+            )
+        # Revert main UI state
+        self.manager._reset_fetch_inputs()
 
 
 class AutoCorporateActionsManager:
@@ -106,14 +172,21 @@ class AutoCorporateActionsManager:
         # --- Source selection ---
         self.widgets["source_radio"] = pn.widgets.RadioButtonGroup(
             name="Fetch Mode",
-            options=["From Last Date", "From Selected Date"],
+            options=["From Last Date", "Between 2 Dates"],
             value="From Last Date",
             button_type="primary",
             button_style="outline",
         )
 
-        self.widgets["custom_date_picker"] = pn.widgets.DatePicker(
-            name="Select Date",
+        self.widgets["start_date_picker"] = pn.widgets.DatePicker(
+            name="Start Date",
+            value=date.today(),
+            end=date.today(),
+            visible=False,
+            styles={"font-weight": "bold !important"},
+        )
+        self.widgets["end_date_picker"] = pn.widgets.DatePicker(
+            name="End Date",
             value=date.today(),
             end=date.today(),
             visible=False,
@@ -183,7 +256,10 @@ class AutoCorporateActionsManager:
             pn.Column(
                 self.widgets["source_radio"],
                 self.widgets["last_update_text"],
-                self.widgets["custom_date_picker"],
+                pn.Row(
+                    self.widgets["start_date_picker"],
+                    self.widgets["end_date_picker"],
+                ),
                 margin=(0, 20, 0, 0),
             ),
             pn.Column(
@@ -211,27 +287,66 @@ class AutoCorporateActionsManager:
 
     def _on_source_change(self, event) -> None:
         """Show/hide the custom date picker based on selection."""
-        self.widgets["custom_date_picker"].visible = event.new == "From Selected Date"
+        is_between = event.new == "Between 2 Dates"
+        self.widgets["start_date_picker"].visible = is_between
+        self.widgets["end_date_picker"].visible = is_between
 
     def _on_fetch_click(self, event) -> None:
-        """Execute progressive fetch and update the UI logger."""
+        """Trigger fetch logic. If between 2 dates, open modal. Else execute."""
+        if self.widgets["source_radio"].value == "From Last Date":
+            self._execute_fetch(strategy="Update/Append")
+        else:
+            start_date = self.widgets["start_date_picker"].value
+            end_date = self.widgets["end_date_picker"].value
+            if self.panel_modal is None:
+                pn.state.notifications.error("Modal not configured.")
+                return
+
+            self.widgets["fetch_button"].disabled = True
+            self.widgets["source_radio"].disabled = True
+            
+            # Use parameterized manager for the modal
+            self._fetch_confirm_mgr = FetchConfirmationManager(self, start_date, end_date)
+            
+            self.panel_modal.open(
+                content=[self._fetch_confirm_mgr.view()],
+                title="Fetch Options",
+                back_cb=self._reopen_self_for_fetch_cancel,
+            )
+
+    def _reopen_self_for_fetch_cancel(self):
+        """Called when back button on confirmation modal is clicked."""
+        self._fetch_confirm_mgr._on_cancel(None)
+
+    def _execute_fetch(self, strategy: str, start_date: date = None, end_date: date = None) -> None:
+        """Execute progressive fetch based on strategy and update the UI logger."""
         self.widgets["fetch_button"].disabled = True
         self.widgets["source_radio"].disabled = True
-        self.widgets["custom_date_picker"].disabled = True
+        if "start_date_picker" in self.widgets:
+            self.widgets["start_date_picker"].disabled = True
+            self.widgets["end_date_picker"].disabled = True
         self.widgets["status_text"].object = ""
 
         self.progress_logger_pane.visible = True
         self._preview_area.visible = False
         self.progress_logger.clear()
-        self.progress_logger.log("🔍 Initializing fetch...", "info")
+        self.progress_logger.log(f"🔍 Initializing fetch (Strategy: {strategy})...", "info")
 
         from_date = None
-        if self.widgets["source_radio"].value == "From Selected Date":
-            from_date = self.widgets["custom_date_picker"].value
+        to_date = None
+        if strategy == "Full Reset":
             delete_all_corporate_actions_data()
+        elif strategy == "Replace Range" and start_date and end_date:
+            delete_corporate_actions_range(start_date, end_date)
+            from_date = start_date
+            to_date = end_date
+        elif strategy == "Update/Append":
+            if self.widgets["source_radio"].value == "Between 2 Dates":
+                from_date = start_date
+                to_date = end_date
 
         generator = fetch_pending_corporate_actions_progressive(
-            self.transactions_data, from_date
+            self.transactions_data, from_date, to_date
         )
 
         def _fetch_step():
@@ -242,32 +357,30 @@ class AutoCorporateActionsManager:
                     self.progress_logger.complete("Fetching complete! (100%)")
 
                     if not self._pending_actions:
-                        self.widgets["status_text"].object = (
-                            "**No pending actions found.**"
-                        )
+                        self.widgets["status_text"].object = "**No pending actions found.**"
                         self.progress_logger_pane.visible = False
-                        self.widgets["fetch_button"].disabled = False
-                        self.widgets["source_radio"].disabled = False
-                        self.widgets["custom_date_picker"].disabled = False
+                        self._reset_fetch_inputs()
                     else:
-                        pn.state.add_periodic_callback(
-                            self._start_wizard, period=500, count=1
-                        )
+                        pn.state.add_periodic_callback(self._start_wizard, period=500, count=1)
                 else:
-                    self.progress_logger.log(
-                        update["status"], 
-                        "info", 
-                        progress=update.get("progress")
-                    )
+                    self.progress_logger.log(update["status"], "info", progress=update.get("progress"))
                     pn.state.add_periodic_callback(_fetch_step, period=50, count=1)
             except StopIteration:
                 pass
             except Exception as e:
                 log.error("Fetch failed: %s", e)
                 self.progress_logger.error(f"Error: {str(e)}")
-                self.widgets["fetch_button"].disabled = False
-                self.widgets["source_radio"].disabled = False
-                self.widgets["custom_date_picker"].disabled = False
+                self._reset_fetch_inputs()
+
+        pn.state.add_periodic_callback(_fetch_step, period=50, count=1)
+
+    def _reset_fetch_inputs(self):
+        """Reset the inputs if we abort/cancel/finish empty."""
+        self.widgets["fetch_button"].disabled = False
+        self.widgets["source_radio"].disabled = False
+        if "start_date_picker" in self.widgets:
+            self.widgets["start_date_picker"].disabled = False
+            self.widgets["end_date_picker"].disabled = False
 
         pn.state.add_periodic_callback(_fetch_step, period=50, count=1)
 

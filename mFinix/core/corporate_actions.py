@@ -383,7 +383,7 @@ class _PendingActionsRegistry:
 
 
 def fetch_pending_corporate_actions_progressive(
-    trade_data: pd.DataFrame, from_date: date = None
+    trade_data: pd.DataFrame, from_date: date = None, to_date: date = None
 ):
     """
     Progressive generator version of fetch_pending_corporate_actions.
@@ -429,6 +429,23 @@ def fetch_pending_corporate_actions_progressive(
         if stock_trade_data.empty:
             continue
 
+        # Check if stock was in portfolio during [effective_date, to_date]
+        _check_end_date = to_date if to_date else date.today()
+        applicable_trades_end = stock_trade_data[stock_trade_data[col.TRADE_DATE] <= _check_end_date]
+        if applicable_trades_end.empty:
+            continue
+            
+        applicable_trades_start = stock_trade_data[stock_trade_data[col.TRADE_DATE] < effective_date]
+        qty_at_start = applicable_trades_start[col.TOTAL_QUANTITY].iloc[-1] if not applicable_trades_start.empty else 0
+        
+        trades_during = stock_trade_data[
+            (stock_trade_data[col.TRADE_DATE] >= effective_date) & 
+            (stock_trade_data[col.TRADE_DATE] <= _check_end_date)
+        ]
+        
+        if qty_at_start <= 0 and trades_during.empty:
+            continue
+
         # 1. Fetch from YFinance
         symbol = stock_trade_data[col.SYMBOL].iloc[0]
         try:
@@ -443,9 +460,10 @@ def fetch_pending_corporate_actions_progressive(
             stock_name = display_name
 
         if not actions_data.empty:
-            for dt, row in actions_data[
-                actions_data.index.date >= effective_date
-            ].iterrows():
+            date_mask = actions_data.index.date >= effective_date
+            if to_date:
+                date_mask = date_mask & (actions_data.index.date <= to_date)
+            for dt, row in actions_data[date_mask].iterrows():
                 applicable = stock_trade_data[
                     stock_trade_data[col.TRADE_DATE].lt(dt.date())
                 ]
@@ -511,7 +529,10 @@ def fetch_pending_corporate_actions_progressive(
             # Dividends from NSE (registry auto-skips duplicates from YFinance)
             div_df = all_actions.get(const.DIVIDEND, pd.DataFrame())
             if not div_df.empty:
-                for dt, row in div_df[div_df.index.date >= effective_date].iterrows():
+                date_mask = div_df.index.date >= effective_date
+                if to_date:
+                    date_mask = date_mask & (div_df.index.date <= to_date)
+                for dt, row in div_df[date_mask].iterrows():
                     applicable = stock_trade_data[
                         stock_trade_data[col.TRADE_DATE].lt(dt.date())
                     ]
@@ -542,9 +563,10 @@ def fetch_pending_corporate_actions_progressive(
             for key in (const.BONUS, const.MERGER, const.DEMERGER):
                 act_df = all_actions.get(key, pd.DataFrame())
                 if not act_df.empty:
-                    for dt, row in act_df[
-                        act_df.index.date >= effective_date
-                    ].iterrows():
+                    date_mask = act_df.index.date >= effective_date
+                    if to_date:
+                        date_mask = date_mask & (act_df.index.date <= to_date)
+                    for dt, row in act_df[date_mask].iterrows():
                         applicable = stock_trade_data[
                             stock_trade_data[col.TRADE_DATE].lt(dt.date())
                         ]
@@ -607,12 +629,12 @@ def fetch_pending_corporate_actions_progressive(
 
 
 def fetch_pending_corporate_actions(
-    trade_data: pd.DataFrame, from_date: date = None
+    trade_data: pd.DataFrame, from_date: date = None, to_date: date = None
 ) -> List[Dict]:
     """
     Synchronous wrapper for fetch_pending_corporate_actions_progressive.
     """
-    generator = fetch_pending_corporate_actions_progressive(trade_data, from_date)
+    generator = fetch_pending_corporate_actions_progressive(trade_data, from_date, to_date)
     result = []
     for update in generator:
         if "data" in update:
@@ -654,6 +676,52 @@ def delete_all_corporate_actions_data() -> Path:
             log.info("Backed up and deleted %s", fname)
 
     log.info("All corporate actions data backed up to %s and deleted", backup_dir)
+    return backup_dir
+
+
+def delete_corporate_actions_range(start_date: date, end_date: date) -> Path:
+    """Delete corporate actions between start_date and end_date.
+
+    Creates a timestamped backup directory under .data/backups/ before
+    filtering out the records.
+    
+    Returns
+    -------
+    Path
+        Path to the backup directory created.
+    """
+    backup_dir = (
+        const.LOCAL_DATA_PATH / "backups" / f"replace_range_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    )
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    csv_files = [
+        const.DIVIDEND_CSV,
+        const.SPLIT_ACTIONS_CSV,
+        const.BONUS_CSV,
+        const.BUYBACK_CSV,
+        const.MERGER_CSV,
+        const.DEMERGER_CSV,
+    ]
+
+    for fname in csv_files:
+        src = const.LOCAL_DATA_PATH / fname
+        if src.exists():
+            shutil.copy2(src, backup_dir / fname)
+            
+            try:
+                df = pd.read_csv(src)
+                if not df.empty and col.TRADE_DATE in df.columns:
+                    df_dates = pd.to_datetime(df[col.TRADE_DATE], format="mixed").dt.date
+                    mask_outside = (df_dates < start_date) | (df_dates > end_date)
+                    filtered_df = df[mask_outside]
+                    filtered_df.to_csv(src, index=False)
+                    log.info("Filtered %d rows from %s (between %s and %s)", 
+                             len(df) - len(filtered_df), fname, start_date, end_date)
+            except Exception as e:
+                log.warning("Could not filter %s for range deletion: %s", fname, e)
+
+    log.info("Corporate actions between %s and %s backed up to %s and removed", start_date, end_date, backup_dir)
     return backup_dir
 
 
