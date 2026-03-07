@@ -32,9 +32,7 @@ class Mfinix:
             header_background="#0a1128",
             accent_base_color="#3b82f6",
             site="mFinix",
-            sidebar_width=280,
-            busy_indicator=None,
-            main_max_width="95%",
+            sidebar_width=260,
         )
 
         # initialize tabs (after dashboard so TabStocks can access the modal)

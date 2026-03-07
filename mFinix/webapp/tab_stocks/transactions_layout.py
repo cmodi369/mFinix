@@ -55,7 +55,6 @@ class TransactionsManager:
                 col.TRANSACTION_AMOUNT: NumberFormatter(format="0,0.00"),
                 col.TOTAL_QUANTITY: NumberFormatter(format="0,0"),
             },
-            row_height=webapp_const.UIStyles.TABLE_ROW_HEIGHT,
             sizing_mode="stretch_width",
             min_height=550,
         )

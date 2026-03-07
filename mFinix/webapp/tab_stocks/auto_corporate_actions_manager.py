@@ -422,9 +422,9 @@ class AutoCorporateActionsManager:
                     self.progress_logger.complete("Fetching complete! (100%)")
 
                     if not self._pending_actions:
-                        self.widgets["status_text"].object = (
-                            "**No pending actions found.**"
-                        )
+                        self.widgets[
+                            "status_text"
+                        ].object = "**No pending actions found.**"
                         self.progress_logger_pane.visible = False
                         self._reset_fetch_inputs()
                     else:
@@ -511,7 +511,6 @@ class AutoCorporateActionsManager:
             sizing_mode="stretch_width",
             buttons=table_buttons,
             theme=webapp_const.UIStyles.TABLE_THEME,
-            row_height=webapp_const.UIStyles.TABLE_ROW_HEIGHT,
             page_size=20,
             pagination="local",
         )
@@ -711,6 +710,6 @@ class AutoCorporateActionsManager:
     def _refresh_last_update_date(self) -> None:
         """Update the label from disk."""
         last_update = get_last_corporate_actions_update_date()
-        self.widgets["last_update_text"].object = (
-            f"*Last Updated: {last_update.strftime('%d-%b-%Y')}*"
-        )
+        self.widgets[
+            "last_update_text"
+        ].object = f"*Last Updated: {last_update.strftime('%d-%b-%Y')}*"

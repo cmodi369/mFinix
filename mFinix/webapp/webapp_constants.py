@@ -52,78 +52,193 @@ COL_NAME_MAPPING: dict[str, str] = {
 
 class UIStyles:
     # Color constants - Using Panel CSS variables for theme compatibility
-    POSITIVE_COLOR = "var(--success-text-color)"  # Adapts to theme (Green)
-    NEGATIVE_COLOR = "var(--danger-text-color)"  # Adapts to theme (Red)
-    NEUTRAL_COLOR = "var(--neutral-text-color)"  # Adapts to theme (Gray)
-    INDICATOR_BG_COLOR = "var(--neutral-fill-rest)"  # Neutral background
-    HEADER_COLOR = "var(--neutral-foreground-rest)"
-    ACCENT_COLOR = "var(--accent-foreground-rest)"
+    POSITIVE_COLOR = "var(--success-text-color)"
+    NEGATIVE_COLOR = "var(--danger-text-color)"
+    NEUTRAL_COLOR = "var(--neutral-foreground-rest)"
+    INDICATOR_BG_COLOR = "var(--neutral-fill-card-rest)"
     BORDER_STYLE = "1px solid var(--neutral-stroke-rest)"
+    HEADER_COLOR = "var(--neutral-foreground-rest)"
+    CARD_BACKGROUND = "var(--neutral-fill-card-rest)"
 
     # Table styles
     TABLE_THEME = "fast"
-    TABLE_HEADER_BG = "var(--neutral-fill-hover)"
-    TABLE_ROW_HEIGHT = 40
 
     # Text styles
-    INDICATOR_TITLE_SIZE = "13pt"
-    INDICATOR_VALUE_SIZE = "22pt"
+    INDICATOR_TITLE_SIZE = "11pt"
+    INDICATOR_VALUE_SIZE = "20pt"
 
     # Card styles
-    CARD_BACKGROUND = "var(--neutral-fill-card-rest)"
     CARD_STYLE = {
         "background-color": CARD_BACKGROUND,
         "border": BORDER_STYLE,
         "border-radius": "16px",
-        "box_shadow": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
-        "margin_bottom": "24px",
-        "display": "flex",
-        "flex_direction": "column",
+        "box-shadow": "var(--elevation-shadow-1)",
+        "padding": "20px",
+        "margin": "0px",
     }
 
-    # Custom CSS
-    CUSTOM_CSS = """
-    .tabulator-header {
-        background-color: var(--neutral-fill-hover) !important;
-        font-weight: 600 !important;
-        color: var(--neutral-foreground-rest) !important;
-        border-bottom: 2px solid var(--neutral-stroke-rest) !important;
-        text-transform: uppercase;
-        font-size: 0.85rem;
-        letter-spacing: 0.5px;
-    }
-    .tabulator-row {
-        border-bottom: 1px solid var(--neutral-stroke-divider-rest) !important;
-        transition: background-color 0.2s ease;
-        background-color: var(--neutral-fill-card-rest) !important;
-        color: var(--neutral-foreground-rest);
-    }
-    .tabulator-row-odd {
-        background-color: var(--neutral-fill-card-rest) !important;
-    }
-    .tabulator-row-even {
-        background-color: var(--neutral-fill-card-rest) !important;
-    }
-    .tabulator-row:hover {
-        background-color: var(--neutral-fill-hover) !important;
-        cursor: pointer;
-    }
-    .metric-label {
-        color: var(--neutral-foreground-hint);
-        font-size: 0.9rem;
-        font-weight: 500;
-        margin-bottom: 4px;
-    }
-    .metric-value {
-        color: var(--neutral-foreground-rest);
-        font-size: 1.8rem;
-        font-weight: 700;
-    }
-    .bk-root .bk-panel-models-layout-Column {
-        width: 100% !important;
-        max-width: none !important;
+    # Custom CSS for the premium overhaul - Modularized for maintainability
+    MAIN_LAYOUT_CSS = """
+    /* Main Layout */
+    .main-container {
+        background-color: var(--neutral-fill-focus);
+        padding: 5px;
     }
     """
+
+    SUMMARY_CARD_CSS = """
+    /* Summary Cards */
+    .summary-card {
+        background-color: var(--neutral-fill-card-rest);
+        border: 2px solid var(--neutral-stroke-rest);
+        border-radius: 16px;
+        padding: 24px;
+        min-width: 280px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .summary-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--elevation-shadow-2);
+    }
+    .summary-label {
+        color: var(--neutral-foreground-hint);
+        font-size: 0.95rem;
+        font-weight: 500;
+        margin-bottom: 12px;
+    }
+    .summary-value-container {
+        display: flex;
+        align-items: center;
+    }
+    .summary-value {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: var(--neutral-foreground-rest);
+    }
+    """
+
+    HEADER_CONTROLS_CSS = """
+    /* Header & Controls */
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--neutral-foreground-rest);
+        margin: 0;
+    }
+    .action-button .bk-btn {
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        padding: 8px 20px !important;
+        transition: all 0.2s ease !important;
+    }
+    .search-input .bk-input {
+        border-radius: 10px !important;
+        border: 1px solid var(--neutral-stroke-rest) !important;
+        padding: 8px 12px 8px 36px !important;
+        background-color: var(--neutral-fill-input-rest) !important;
+    }
+    """
+
+    TABULATOR_CSS = """
+    /* Table Styling */
+    .holdings-table .tabulator {
+        border: none !important;
+        background-color: transparent !important;
+    }
+    .holdings-table .tabulator-header {
+        background-color: transparent !important;
+        border-bottom: 2px solid var(--neutral-stroke-rest) !important;
+    }
+    .holdings-table .tabulator-col {
+        background-color: transparent !important;
+        border: none !important;
+    }
+    .holdings-table .tabulator-col-title {
+        color: var(--neutral-foreground-hint) !important;
+        font-size: 0.75rem !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+    }
+    .holdings-table .tabulator-row {
+        border-bottom: 1px solid var(--neutral-stroke-divider-rest) !important;
+        background-color: transparent !important;
+        min-height: 70px !important;
+        display: flex;
+        align-items: center;
+    }
+    .holdings-table .tabulator-cell {
+        border: none !important;
+        padding: 12px 8px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    """
+
+    CELL_COMPONENTS_CSS = """
+    /* Cell Components */
+    .status-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+    }
+    .stock-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .stock-name {
+        font-weight: 700;
+        color: var(--neutral-foreground-rest);
+        font-size: 0.95rem;
+    }
+    .stock-isin {
+        color: var(--neutral-foreground-hint);
+        font-size: 0.75rem;
+        font-family: monospace;
+    }
+    .pnl-container {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+    }
+    .pnl-value {
+        font-weight: 700;
+        font-size: 1rem;
+    }
+    .pnl-percent {
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .fix-now-btn .bk-btn {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        color: inherit !important;
+        font-size: inherit !important;
+        font-weight: 600 !important;
+        text-decoration: underline !important;
+        cursor: pointer !important;
+        min-height: unset !important;
+    }
+    .fix-now-btn .bk-btn:hover {
+        opacity: 0.8;
+    }
+    """
+
+    CUSTOM_CSS = (
+        MAIN_LAYOUT_CSS
+        + SUMMARY_CARD_CSS
+        + HEADER_CONTROLS_CSS
+        + TABULATOR_CSS
+        + CELL_COMPONENTS_CSS
+    )
 
 
 class SidebarStyles:
@@ -131,14 +246,11 @@ class SidebarStyles:
 
     # Color palette
     SIDEBAR_BG = "#0a1128"  # Dark navy background
-    BUTTON_INACTIVE_COLOR = "#94a3b8"  # Slate gray for inactive buttons
-    BUTTON_ACTIVE_BG = "#2563eb"  # Blue for active state
-    BUTTON_HOVER_BG = "rgba(255, 255, 255, 0.05)"  # Subtle white overlay on hover
 
     # Sidebar container styling
     SIDEBAR_CONTAINER_STYLES = {
         "width": "100%",
-        "padding": "20px 16px",
+        "padding": "20px 8px",
         "background-color": SIDEBAR_BG,
         "display": "flex",
         "flex-direction": "column",
@@ -176,8 +288,12 @@ class SidebarStyles:
 
     CUSTOM_CSS = """
         #sidebar {
-            padding: 5px 5px 5px 0px  !important;
+            padding: 5px 0px 5px 0px  !important;
             overflow-y: hidden !important;
+        }
+        
+        fast-card {
+            padding: 0px !important;
         }
 
         .pn-sidebar-container {
