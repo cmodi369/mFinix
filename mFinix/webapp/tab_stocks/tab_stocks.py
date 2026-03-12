@@ -104,13 +104,6 @@ class TabStocks:
             self._get_discrepancy_card_html(0), sizing_mode="stretch_width"
         )
 
-        widgets["search_input"] = pn.widgets.TextInput(
-            placeholder="Search stock...",
-            width=300,
-            css_classes=["search-input"],
-            margin=(0, 10),
-        )
-
         widgets["fix_discrepancy_btn"] = pn.widgets.Button(
             name="Fix Now",
             css_classes=["fix-now-btn"],
@@ -175,9 +168,6 @@ class TabStocks:
             widths={col.STATUS_ICON: 60},
         )
 
-        # Link search
-        widgets["search_input"].link(widgets["stocks_xirr_table"], value="filters")
-
         return widgets
 
     def _get_summary_card_html(self, label, value, is_percent=False):
@@ -208,18 +198,6 @@ class TabStocks:
         )
         self.tab_widgets["fix_discrepancy_btn"].on_click(
             lambda e: self._open_event_entry_window()
-        )
-
-        # Link search
-        def _search_filter(target, event):
-            target.filters = (
-                [{"field": col.SYMBOL, "type": "like", "value": event.new}]
-                if event.new
-                else []
-            )
-
-        self.tab_widgets["search_input"].link(
-            self.tab_widgets["stocks_xirr_table"], callbacks={"value": _search_filter}
         )
 
     def _initialize_tab_data(self):
@@ -436,8 +414,6 @@ class TabStocks:
                 f'<div style="font-size: 1.5rem; font-weight: 700;">Your Holdings <span style="font-size: 0.9rem; background: var(--neutral-fill-rest); padding: 4px 12px; border-radius: 12px; color: var(--neutral-foreground-hint); margin-left: 10px;">{len(self.tab_data["stocks_xirr_data"])} Stocks</span></div>'
             ),
             pn.Spacer(sizing_mode="stretch_width"),
-            self.tab_widgets["search_input"],
-            pn.widgets.Button(icon="filter", button_type="light", width=40),
             align="center",
             margin=(20, 0, 10, 0),
         )
