@@ -357,8 +357,8 @@ class IPOInputsManager(CorporateEventHandler):
                 "link_removal_date"
             ]  # link removal date is considered as IPO date for XIRR calculation else it returns None
         ).date()
-        self.widgets["quantity_input"].value = (
-            self.calculate_ipo_quantity_from_holdings(
-                self.widgets["stock_select"].value
-            )
+        self.widgets[
+            "quantity_input"
+        ].value = self.calculate_ipo_quantity_from_holdings(
+            self.widgets["stock_select"].value
         )

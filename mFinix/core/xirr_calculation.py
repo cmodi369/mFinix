@@ -1,5 +1,6 @@
 # standard imports
 from datetime import date
+from typing import Optional
 
 import pandas as pd
 from pyxirr import xirr
@@ -7,11 +8,14 @@ from pyxirr import xirr
 import mFinix.constants.columns as col
 
 # module specific constants
-import mFinix.constants.constants as const
 import mFinix.core.data_management as dm
 import mFinix.core.data_processing as dp
-from mFinix.core.corporate_actions import add_corporate_actions_in_tradebook
+from mFinix.core.historical_price_cache import (
+    get_cached_fy_value,
+    update_cached_fy_value,
+)
 from mFinix.core.yfinance_query import fetch_stocks_price
+from mFinix.util import log
 
 
 def calculate_portfolio_xirr_from_ledger(
@@ -82,17 +86,6 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
     Calculate XIRR from zerodha tradebook
     """
     ret_data_dict = {}
-
-    # get all years from data
-    years = pd.to_datetime(transactions_data[col.TRADE_DATE]).dt.year.unique().tolist()
-
-    # TODO: calculate portfolio value for all years, save them in local data in json till last year
-    # TODO: Use them next time to calculate calendar year wise XIRR and portfolio XIRR
-    # ret_data_dict["portfolio_value_df"] = {}
-    # for year in years:
-    #     ret_data_dict["portfolio_value_df"][year] = calculate_portfolio_value_as_on_date(
-    #         transactions_data[transactions_data[col.TRADE_DATE].dt.year <= year],
-    #         _get_query_date(year))
 
     # get current portfolio stocks
     portfolio_stocks = dp.get_portfolio_stocks(transactions_data).reset_index()
@@ -166,19 +159,174 @@ def calculate_stock_xirr_from_transactions(transactions_data: pd.DataFrame) -> d
     return ret_data_dict
 
 
-def calculate_portfolio_value_as_on_date(transactions: pd.DataFrame, as_on_date: date):
-    # get current portfolio stocks
-    portfolio_stocks = dp.get_portfolio_stocks(transactions)
+def _get_fy_end_portfolio_value(
+    transactions_up_to_fy_end: pd.DataFrame,
+    fy_end_date: date,
+    fy_label: str,
+    force_refresh: bool = False,
+) -> Optional[float]:
+    """Return (cached) portfolio value at the end of a given FY.
 
-    # fetch latest stock price
-    latest_stock_price_df = fetch_stocks_price(
-        portfolio_stocks.index.unique(), as_on_date
+    For completed FYs the value is cached on disk after first calculation.
+    """
+    if not force_refresh:
+        cached = get_cached_fy_value(fy_label)
+        if cached is not None:
+            log.info("Using cached portfolio value for %s: %.2f", fy_label, cached)
+            return cached
+
+    portfolio = dp.get_portfolio_stocks(transactions_up_to_fy_end).reset_index()
+    if portfolio.empty:
+        return None
+
+    # Build identifier map (ISIN preferred, fallback Symbol)
+    portfolio["_price_id"] = portfolio.apply(
+        lambda r: r[col.ISIN]
+        if pd.notna(r.get(col.ISIN, "")) and r[col.ISIN] != ""
+        else r[col.SYMBOL],
+        axis=1,
+    )
+    isin_symbol_map = dict(zip(portfolio["_price_id"], portfolio[col.SYMBOL]))
+
+    prices = fetch_stocks_price(isin_symbol_map, on_date=fy_end_date)
+    prices.name = col.CURRENT_PRICE
+
+    portfolio = portfolio.merge(
+        prices, left_on="_price_id", right_index=True, how="left"
+    ).drop(columns=["_price_id"])
+    portfolio = portfolio.dropna(subset=[col.CURRENT_PRICE])
+
+    value = float((portfolio[col.TOTAL_QUANTITY] * portfolio[col.CURRENT_PRICE]).sum())
+
+    # Cache only for completed FYs
+    if fy_end_date < date.today():
+        update_cached_fy_value(fy_label, value)
+        log.info("Cached portfolio value for %s: %.2f", fy_label, value)
+
+    return value
+
+
+def calculate_fy_xirr_series(
+    transactions_data: pd.DataFrame,
+    current_portfolio_value: float,
+) -> dict:
+    """Calculate XIRR for each Financial Year (Apr-Mar).
+
+    Uses cached FY-end portfolio values to avoid repeated yfinance calls.
+    The current (incomplete) FY uses the live portfolio value.
+
+    Parameters
+    ----------
+    transactions_data : pd.DataFrame
+        Full transactions DataFrame with TRADE_DATE and TRANSACTION_AMOUNT columns.
+    current_portfolio_value : float
+        Live portfolio value in INR (used for the current FY).
+
+    Returns
+    -------
+    dict
+        Mapping of FY label (e.g. "FY2024-25") -> XIRR as a percentage.
+        Returns None for FYs where XIRR cannot be computed.
+    """
+    from mFinix.core.benchmark_data import (
+        fy_label_to_dates,
+        get_all_fy_labels,
+        is_fy_complete,
     )
 
-    return 50000
+    if transactions_data.empty:
+        return {}
 
+    transactions_data = transactions_data.copy()
+    transactions_data[col.TRADE_DATE] = pd.to_datetime(
+        transactions_data[col.TRADE_DATE]
+    )
 
-def _get_query_date(year: int) -> date:
-    if year == date.today().year:
-        return date.today()
-    return date(year, 12, 31)
+    earliest_date = transactions_data[col.TRADE_DATE].min().date()
+    all_fy_labels = get_all_fy_labels(earliest_date)
+
+    result = {}
+
+    for fy_label in all_fy_labels:
+        fy_start, fy_end = fy_label_to_dates(fy_label)
+        fy_complete = is_fy_complete(fy_label)
+
+        clean_label = fy_label.split(" ")[0]
+        start_year = int(clean_label[2:6])
+        prev_start_year = start_year - 1
+        prev_fy_label = f"FY{prev_start_year}-{str(start_year)[2:]}"
+        prev_fy_end = date(start_year, 3, 31)
+
+        # Transactions up to previous FY end (for starting portfolio value)
+        tx_up_to_prev_fy = transactions_data[
+            transactions_data[col.TRADE_DATE] <= pd.Timestamp(prev_fy_end)
+        ]
+
+        # Transactions up to FY-end (to calculate FY-end value if needed)
+        tx_up_to_fy = transactions_data[
+            transactions_data[col.TRADE_DATE] <= pd.Timestamp(fy_end)
+        ]
+
+        # Transactions within the FY only
+        tx_in_fy = transactions_data[
+            (transactions_data[col.TRADE_DATE] >= pd.Timestamp(fy_start))
+            & (transactions_data[col.TRADE_DATE] <= pd.Timestamp(fy_end))
+        ]
+
+        fy_start_value = 0.0
+        if not tx_up_to_prev_fy.empty:
+            val = _get_fy_end_portfolio_value(
+                tx_up_to_prev_fy, prev_fy_end, prev_fy_label
+            )
+            if val is not None:
+                fy_start_value = val
+
+        # Determine portfolio value at FY-end
+        if fy_complete:
+            fy_end_value = _get_fy_end_portfolio_value(tx_up_to_fy, fy_end, fy_label)
+        else:
+            # Current FY - use live value
+            fy_end_value = current_portfolio_value
+
+        if fy_end_value is None:
+            fy_end_value = 0.0
+
+        if fy_start_value <= 0 and fy_end_value <= 0 and tx_in_fy.empty:
+            log.warning("No portfolio value available for %s, skipping XIRR.", fy_label)
+            result[fy_label] = None
+            continue
+
+        # Build XIRR cash flows:
+        dates_list = []
+        amounts_list = []
+
+        # 1. Starting portfolio value (simulated investment/inflow into the period)
+        if fy_start_value > 0:
+            dates_list.append(prev_fy_end)
+            amounts_list.append(fy_start_value)
+
+        # 2. Transactions during the FY
+        if not tx_in_fy.empty:
+            dates_list.extend(tx_in_fy[col.TRADE_DATE].dt.date.tolist())
+            amounts_list.extend(tx_in_fy[col.TRANSACTION_AMOUNT].tolist())
+
+        # 3. Ending portfolio value (simulated withdrawal/outflow from the period)
+        end_date = fy_end if fy_complete else date.today()
+        if fy_end_value > 0:
+            dates_list.append(end_date)
+            amounts_list.append(-fy_end_value)
+
+        # Need at least one positive and one negative cash flow
+        if not (any(a > 0 for a in amounts_list) and any(a < 0 for a in amounts_list)):
+            result[fy_label] = None
+            continue
+
+        try:
+            fy_xirr_value = xirr(dates_list, amounts_list) * 100
+            result[fy_label] = round(float(fy_xirr_value), 2)
+            log.info("FY XIRR %s: %.2f%%", fy_label, result[fy_label])
+        except Exception as exc:
+            log.warning("XIRR computation failed for %s: %s", fy_label, exc)
+            result[fy_label] = None
+
+    return result

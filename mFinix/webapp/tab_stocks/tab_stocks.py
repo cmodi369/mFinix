@@ -5,8 +5,6 @@ import panel as pn
 from bokeh.models.widgets.tables import NumberFormatter
 
 import mFinix.constants.columns as col
-import mFinix.constants.constants as const
-import mFinix.constants.panel_constants as pn_const
 import mFinix.webapp.webapp_constants as webapp_const
 from mFinix.util import log
 from mFinix.webapp.panel_modal import PanelModal
@@ -14,6 +12,7 @@ from mFinix.webapp.tab_stocks.auto_corporate_actions_manager import (
     AutoCorporateActionsManager,
 )
 from mFinix.webapp.tab_stocks.event_entry_layout import EventDataManager
+from mFinix.webapp.tab_stocks.fy_xirr_panel import FYXirrPanel
 from mFinix.webapp.tab_stocks.manual_data_fetch_manager import ManualDataFetchManager
 from mFinix.webapp.tab_stocks.transactions_layout import TransactionsManager
 from mFinix.webapp.tab_stocks.utility import (
@@ -59,6 +58,9 @@ class TabStocks:
         self.manual_data_manager = ManualDataFetchManager(
             self.tab_data, self.tab_widgets, self._refresh_tables, self.panel_modal
         )
+
+        # initialize FY XIRR analysis panel
+        self.fy_panel = FYXirrPanel(self.tab_data)
 
         # add callbacks
         self._add_callbacks()
@@ -411,14 +413,29 @@ class TabStocks:
         # Holdings Section Header
         holdings_header = pn.Row(
             pn.pane.HTML(
-                f'<div style="font-size: 1.5rem; font-weight: 700;">Your Holdings <span style="font-size: 0.9rem; background: var(--neutral-fill-rest); padding: 4px 12px; border-radius: 12px; color: var(--neutral-foreground-hint); margin-left: 10px;">{len(self.tab_data["stocks_xirr_data"])} Stocks</span></div>'
+                f'<div style="font-size: 1.5rem; font-weight: 700;">Your Holdings '
+                f'<span style="font-size: 0.9rem; background: var(--neutral-fill-rest); '
+                f"padding: 4px 12px; border-radius: 12px; "
+                f'color: var(--neutral-foreground-hint); margin-left: 10px;">'
+                f'{len(self.tab_data["stocks_xirr_data"])} Stocks</span></div>'
             ),
             pn.Spacer(sizing_mode="stretch_width"),
             align="center",
             margin=(20, 0, 10, 0),
         )
 
-        # Pagination Footer
+        # FY Benchmark section header
+        fy_section_header = pn.Row(
+            pn.pane.HTML(
+                '<div style="font-size: 1.5rem; font-weight: 700;">'
+                "FY Benchmark Comparison</div>"
+            ),
+            pn.Spacer(sizing_mode="stretch_width"),
+            align="center",
+            margin=(20, 0, 4, 0),
+        )
+
+        # Footer note
         footer = pn.Row(
             pn.pane.Markdown(
                 "*Note: XIRR calculation requires transaction history for at least 3 months.*",
@@ -427,11 +444,8 @@ class TabStocks:
                     "font-size": "0.85rem",
                 },
             ),
-            pn.Spacer(sizing_mode="stretch_width"),
-            pn.widgets.Button(name="Previous", button_type="light", width=80),
-            pn.widgets.Button(name="Next", button_type="primary", width=60),
             sizing_mode="stretch_width",
-            margin=(20, 0),
+            margin=(8, 0),
         )
 
         self.layout.objects = [
@@ -441,6 +455,9 @@ class TabStocks:
                 summary_row,
                 holdings_header,
                 self.tab_widgets["stocks_xirr_table"],
+                pn.layout.Divider(margin=(20, 0, 4, 0)),
+                fy_section_header,
+                self.fy_panel.layout,
                 footer,
                 css_classes=["main-container"],
                 sizing_mode="stretch_width",

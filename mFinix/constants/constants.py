@@ -26,12 +26,8 @@ HEADERS: dict = {
 
 NSE_URL: str = "https://www.nseindia.com"
 NSE_STOCK_URL: str = "https://www.nseindia.com/get-quotes/equity?symbol={stock_name}"
-NSE_CORP_ACTIONS_URL: str = (
-    "https://www.nseindia.com/api/corp-info?symbol={stock_name}&corpType=corpactions&market=equities"
-)
-NSE_PAST_IPO_URL: str = (
-    "https://www.nseindia.com/api/public-past-issues?symbol={stock_name}&security_type=all"
-)
+NSE_CORP_ACTIONS_URL: str = "https://www.nseindia.com/api/corp-info?symbol={stock_name}&corpType=corpactions&market=equities"
+NSE_PAST_IPO_URL: str = "https://www.nseindia.com/api/public-past-issues?symbol={stock_name}&security_type=all"
 
 # local corporate_actions data file name
 LOCAL_DATA_PATH: Path = Path(Path(__file__).parents[1], ".data")
@@ -55,3 +51,7 @@ MERGER: str = "merger"
 DEMERGER: str = "demerger"
 
 DEFAULT_LAST_DATE: date = date(2015, 1, 1)
+
+# Cache filenames for FY-scoped calculations
+FY_PORTFOLIO_CACHE: str = "fy_portfolio_cache.json"
+BENCHMARK_CACHE: str = "benchmark_cache.json"
