@@ -33,10 +33,9 @@ from mFinix.util import log
 
 BENCHMARK_INDICES: dict[str, str] = {
     "Nifty 50": "^NSEI",
-    "Nifty Next 50": "^NSMIDCP",
+    "Nifty Next 50": "JUNIORBEES.NS",
     "Nifty Midcap 150": "NIFTYMIDCAP150.NS",
-    "Nifty Smallcap 100": "NIFTYSMLCAP100.NS",
-    "Nifty Smallcap 250": "NIFTYSMLCAP250.NS",
+    "Nifty Smallcap 250 (ETF)": "HDFCSML250.NS",
 }
 
 _CACHE_PATH: Path = LOCAL_DATA_PATH / BENCHMARK_CACHE
@@ -210,22 +209,28 @@ def fetch_benchmark_fy_returns(
     ticker_to_name = {v: k for k, v in BENCHMARK_INDICES.items()}
 
     try:
+        # yfinance v1.0+ returns a (field, ticker) MultiIndex DataFrame for multi-ticker
+        # downloads. Access via df["Close"][ticker].
         df = yf.download(
             tickers,
             start=start_date,
             end=end_date + pd.Timedelta(days=1),
             progress=False,
-            threads=True,
-            group_by="ticker",
             auto_adjust=True,
         )
 
+        # Normalise: yfinance always returns MultiIndex even for a single ticker in v1.0
+        close_df = df["Close"] if "Close" in df.columns.get_level_values(0) else df
+
         for ticker, name in ticker_to_name.items():
             try:
-                if len(tickers) == 1:
-                    close_series = df["Close"].dropna()
+                # Single-ticker download gives close_df with just that ticker as column
+                if ticker in close_df.columns:
+                    close_series = close_df[ticker].dropna()
                 else:
-                    close_series = df[ticker]["Close"].dropna()
+                    log.warning("Ticker %s not found in downloaded data.", ticker)
+                    returns[name] = None
+                    continue
 
                 if len(close_series) < 2:
                     log.warning("Insufficient data for %s (%s).", name, ticker)

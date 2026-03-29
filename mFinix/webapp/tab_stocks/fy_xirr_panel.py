@@ -112,7 +112,7 @@ class FYXirrPanel:
         title_pane = pn.pane.HTML(
             f"""
             <div style="font-size: 0.95rem; font-weight: 700; color: var(--neutral-foreground-rest, #022c22); margin-bottom: 2px;">My XIRR vs Index Return</div>
-            <div style="font-size: 0.78rem; font-weight: 600; color: var(--neutral-foreground-hint, #64748b); margin-bottom: 24px; text-transform: uppercase;">{fy_label}</div>
+            <div style="font-size: 0.78rem; font-weight: 600; color: var(--neutral-foreground-hint, #64748b); margin-bottom: 10px; text-transform: uppercase;">{fy_label}</div>
             """
         )
 
@@ -121,8 +121,8 @@ class FYXirrPanel:
             title_pane,
             sizing_mode="stretch_width",
             styles={
-                "gap": "14px",
-                "padding": "20px",
+                "gap": "5px",
+                "padding": "5px",
                 "background": "var(--neutral-fill-layer-rest, rgba(0,0,0,0.015))",
                 "border": "1px solid var(--neutral-stroke-divider-rest, #e5e7eb)",
                 "border-radius": "12px",
@@ -193,7 +193,6 @@ class FYXirrPanel:
                 label_pane,
                 track_pane,
                 align="center",
-                styles={"gap": "16px"},
                 sizing_mode="stretch_width",
             )
             chart_column.append(row_layout)
@@ -214,7 +213,7 @@ class FYXirrPanel:
             pn.Spacer(width=130),
             pn.pane.HTML(axis_html, sizing_mode="stretch_width"),
             align="center",
-            styles={"gap": "16px", "margin-top": "2px"},
+            styles={"gap": "5px", "margin-top": "2px"},
             sizing_mode="stretch_width",
         )
         chart_column.append(axis_row)
@@ -247,8 +246,6 @@ class FYXirrPanel:
         tx_html = f"""
         <div style="background: var(--neutral-fill-layer-rest, rgba(0,0,0,0.015)); border: 1px solid var(--neutral-stroke-divider-rest, #e5e7eb); border-radius: 12px; padding: 20px; width: 100%; box-sizing: border-box; height: 100%; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
             <div>
-                <div style="font-size: 0.95rem; font-weight: 700; color: var(--neutral-foreground-rest, #022c22); margin-bottom: 24px;">Transaction Summary</div>
-                
                 <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: var(--neutral-foreground-hint, #64748b); margin-bottom: 6px; text-transform: uppercase;">
                     <span>Total Buy Value</span>
                     <span style="color: var(--neutral-foreground-rest, #022c22); font-weight: 800;">{_fmt(total_buy)}</span>
@@ -285,8 +282,6 @@ class FYXirrPanel:
         port_html = f"""
         <div style="background: var(--neutral-fill-layer-rest, rgba(0,0,0,0.015)); border: 1px solid var(--neutral-stroke-divider-rest, #e5e7eb); border-radius: 12px; padding: 20px; width: 100%; box-sizing: border-box; height: 100%; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
             <div>
-                <div style="font-size: 0.95rem; font-weight: 700; color: var(--neutral-foreground-rest, #022c22); margin-bottom: 24px;">Portfolio Growth</div>
-                
                 <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: var(--neutral-foreground-hint, #64748b); margin-bottom: 6px; text-transform: uppercase;">
                     <span>Start Value</span>
                     <span style="color: var(--neutral-foreground-rest, #334155); font-weight: 800;">{_fmt(start_val)}</span>

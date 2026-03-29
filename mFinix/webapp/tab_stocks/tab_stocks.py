@@ -451,7 +451,7 @@ class TabStocks:
             ),
             pn.Spacer(sizing_mode="stretch_width"),
             align="center",
-            margin=(20, 0, 4, 0),
+            margin=(10, 0, 0, 0),
         )
 
         # Footer note
@@ -464,7 +464,6 @@ class TabStocks:
                 },
             ),
             sizing_mode="stretch_width",
-            margin=(8, 0),
         )
 
         self.layout.objects = [
@@ -472,12 +471,13 @@ class TabStocks:
                 header_row,
                 pn.layout.Divider(),
                 summary_row,
-                holdings_header,
-                self.tab_widgets["stocks_xirr_table"],
-                pn.layout.Divider(margin=(20, 0, 4, 0)),
+                pn.layout.Divider(),
                 fy_section_header,
                 self.fy_panel.layout,
                 footer,
+                pn.layout.Divider(),
+                holdings_header,
+                self.tab_widgets["stocks_xirr_table"],
                 css_classes=["main-container"],
                 sizing_mode="stretch_width",
             )
