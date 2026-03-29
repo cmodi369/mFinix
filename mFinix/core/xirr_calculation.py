@@ -181,9 +181,11 @@ def _get_fy_end_portfolio_value(
 
     # Build identifier map (ISIN preferred, fallback Symbol)
     portfolio["_price_id"] = portfolio.apply(
-        lambda r: r[col.ISIN]
-        if pd.notna(r.get(col.ISIN, "")) and r[col.ISIN] != ""
-        else r[col.SYMBOL],
+        lambda r: (
+            r[col.ISIN]
+            if pd.notna(r.get(col.ISIN, "")) and r[col.ISIN] != ""
+            else r[col.SYMBOL]
+        ),
         axis=1,
     )
     isin_symbol_map = dict(zip(portfolio["_price_id"], portfolio[col.SYMBOL]))
@@ -291,9 +293,27 @@ def calculate_fy_xirr_series(
         if fy_end_value is None:
             fy_end_value = 0.0
 
+        # Determine buys and sells within the FY
+        # TRANSACTION_AMOUNT is positive for buys (cash invested), negative for sells (cash returned)
+        total_buy = 0.0
+        total_sell = 0.0
+        if not tx_in_fy.empty:
+            buy_mask = tx_in_fy[col.TRANSACTION_AMOUNT] > 0
+            sell_mask = tx_in_fy[col.TRANSACTION_AMOUNT] < 0
+            total_buy = float(tx_in_fy[buy_mask][col.TRANSACTION_AMOUNT].sum())
+            total_sell = float(abs(tx_in_fy[sell_mask][col.TRANSACTION_AMOUNT].sum()))
+
+        fy_summary = {
+            "xirr": None,
+            "start_value": float(fy_start_value),
+            "end_value": float(fy_end_value),
+            "total_buy": total_buy,
+            "total_sell": total_sell,
+        }
+
         if fy_start_value <= 0 and fy_end_value <= 0 and tx_in_fy.empty:
             log.warning("No portfolio value available for %s, skipping XIRR.", fy_label)
-            result[fy_label] = None
+            result[fy_label] = fy_summary
             continue
 
         # Build XIRR cash flows:
@@ -318,15 +338,16 @@ def calculate_fy_xirr_series(
 
         # Need at least one positive and one negative cash flow
         if not (any(a > 0 for a in amounts_list) and any(a < 0 for a in amounts_list)):
-            result[fy_label] = None
+            result[fy_label] = fy_summary
             continue
 
         try:
             fy_xirr_value = xirr(dates_list, amounts_list) * 100
-            result[fy_label] = round(float(fy_xirr_value), 2)
-            log.info("FY XIRR %s: %.2f%%", fy_label, result[fy_label])
+            fy_summary["xirr"] = round(float(fy_xirr_value), 2)
+            result[fy_label] = fy_summary
+            log.info("FY XIRR %s: %.2f%%", fy_label, fy_summary["xirr"])
         except Exception as exc:
             log.warning("XIRR computation failed for %s: %s", fy_label, exc)
-            result[fy_label] = None
+            result[fy_label] = fy_summary
 
     return result

@@ -89,28 +89,27 @@ class TabStocks:
             css_classes=["action-button"],
         )
 
-        # Summary Cards - Initialized as HTML panes
+        # Summary Cards - Initialized as HTML panes without wrappers
         widgets["portfolio_value_card"] = pn.pane.HTML(
             self._get_summary_card_html("Total Value", 0),
-            css_classes=["summary-card"],
             sizing_mode="stretch_width",
         )
 
         widgets["portfolio_xirr_card"] = pn.pane.HTML(
             self._get_summary_card_html("Portfolio XIRR", 0, is_percent=True),
-            css_classes=["summary-card"],
             sizing_mode="stretch_width",
         )
 
         widgets["discrepancies_card"] = pn.pane.HTML(
-            self._get_discrepancy_card_html(0), sizing_mode="stretch_width"
+            self._get_discrepancy_card_html(0),
+            sizing_mode="stretch_width",
         )
 
         widgets["fix_discrepancy_btn"] = pn.widgets.Button(
             name="Fix Now",
             css_classes=["fix-now-btn"],
-            width=80,
-            margin=(12, 0, 0, 0),
+            width=85,
+            margin=(20, 0, 0, 0),
             visible=False,
         )
 
@@ -173,8 +172,8 @@ class TabStocks:
         return widgets
 
     def _get_summary_card_html(self, label, value, is_percent=False):
-        """Generate HTML for summary cards without badges"""
-        val_str = f"{value:.2f}%" if is_percent else f"₹ {value:.2f} L"
+        """Generate HTML for summary cards"""
+        val_str = f"{value:.2f}%" if is_percent else f"₹ {value:,.2f} L"
 
         return f"""
         <div class="summary-label">{label}</div>
@@ -184,11 +183,17 @@ class TabStocks:
         """
 
     def _get_discrepancy_card_html(self, count):
-        """Generate HTML for discrepancy card label and value"""
-        status_color = "#e74c3c" if count > 0 else "#2ecc71"
+        """Generate HTML for discrepancy card"""
+        status_color = (
+            "var(--danger-text-color, #dc2626)"
+            if count > 0
+            else "var(--success-text-color, #16a34a)"
+        )
         return f"""
         <div class="summary-label">Discrepancies</div>
-        <div style="font-size: 2.2rem; font-weight: 700; color: {status_color};">{count:02d}</div>
+        <div class="summary-value-container">
+            <div class="summary-value" style="color: {status_color}; text-shadow: none;">{count:02d}</div>
+        </div>
         """
 
     def _add_callbacks(self) -> None:
@@ -397,14 +402,28 @@ class TabStocks:
 
         # Summary Section
         summary_row = pn.Row(
-            self.tab_widgets["portfolio_value_card"],
-            self.tab_widgets["portfolio_xirr_card"],
-            pn.Row(
-                self.tab_widgets["discrepancies_card"],
-                self.tab_widgets["fix_discrepancy_btn"],
+            pn.Column(
+                self.tab_widgets["portfolio_value_card"],
                 css_classes=["summary-card"],
                 sizing_mode="stretch_width",
-                styles={"align-items": "center"},
+                min_height=110,
+            ),
+            pn.Column(
+                self.tab_widgets["portfolio_xirr_card"],
+                css_classes=["summary-card"],
+                sizing_mode="stretch_width",
+                min_height=110,
+            ),
+            pn.Column(
+                pn.Row(
+                    self.tab_widgets["discrepancies_card"],
+                    self.tab_widgets["fix_discrepancy_btn"],
+                    sizing_mode="stretch_width",
+                    styles={"align-items": "flex-start"},
+                ),
+                css_classes=["summary-card"],
+                sizing_mode="stretch_width",
+                min_height=110,
             ),
             sizing_mode="stretch_width",
             styles={"gap": "20px"},

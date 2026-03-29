@@ -89,10 +89,10 @@ class UIStyles:
     SUMMARY_CARD_CSS = """
     /* Summary Cards */
     .summary-card {
-        background-color: var(--neutral-fill-card-rest);
-        border: 2px solid var(--neutral-stroke-rest);
-        border-radius: 16px;
-        padding: 24px;
+        background: var(--neutral-fill-layer-rest, rgba(0,0,0,0.015));
+        border: 1px solid var(--neutral-stroke-divider-rest, #e5e7eb);
+        border-radius: 12px;
+        padding: 20px;
         min-width: 280px;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
@@ -101,19 +101,22 @@ class UIStyles:
         box-shadow: var(--elevation-shadow-2);
     }
     .summary-label {
-        color: var(--neutral-foreground-hint);
-        font-size: 0.95rem;
-        font-weight: 500;
-        margin-bottom: 12px;
+        color: var(--neutral-foreground-hint, #64748b);
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
     .summary-value-container {
         display: flex;
-        align-items: center;
+        align-items: baseline;
+        gap: 8px;
     }
     .summary-value {
-        font-size: 2.2rem;
+        font-size: 1.75rem;
         font-weight: 700;
-        color: var(--neutral-foreground-rest);
+        color: var(--neutral-foreground-rest, #022c22);
     }
     """
 
@@ -217,18 +220,23 @@ class UIStyles:
     }
 
     .fix-now-btn .bk-btn {
-        background: transparent !important;
-        border: none !important;
-        padding: 0 !important;
-        color: inherit !important;
-        font-size: inherit !important;
-        font-weight: 600 !important;
-        text-decoration: underline !important;
+        background: var(--danger-fill-rest, #fee2e2) !important;
+        color: var(--danger-text-rest, #dc2626) !important;
+        border: 1px solid var(--danger-stroke-rest, #f87171) !important;
+        border-radius: 8px !important;
+        padding: 6px 14px !important;
+        font-size: 0.78rem !important;
+        font-weight: 700 !important;
+        font-family: 'Inter', sans-serif !important;
+        text-decoration: none !important;
         cursor: pointer !important;
         min-height: unset !important;
+        transition: all 0.2s ease !important;
+        box-shadow: none !important;
     }
     .fix-now-btn .bk-btn:hover {
-        opacity: 0.8;
+        background: var(--danger-fill-hover, #fecaca) !important;
+        transform: translateY(-1px);
     }
     """
 

@@ -71,7 +71,8 @@ class FYXirrPanel:
     # ------------------------------------------------------------------
 
     def _build_chart_column(self, fy_label: str) -> pn.Column:
-        portfolio_xirr: Optional[float] = self._get_fy_xirr_series().get(fy_label)
+        fy_data: dict = self._get_fy_xirr_series().get(fy_label, {})
+        portfolio_xirr: Optional[float] = fy_data.get("xirr")
 
         try:
             bench_returns = fetch_benchmark_fy_returns(fy_label)
@@ -93,11 +94,39 @@ class FYXirrPanel:
         # Max absolute value drives proportional widths.
         vals = [r["value"] for r in rows if r["value"] is not None]
         max_abs = max((abs(v) for v in vals), default=1.0)
-        axis_max = max(math.ceil(max_abs / 10.0) * 10, 10)
+
+        if max_abs <= 10:
+            step = 2
+        elif max_abs <= 25:
+            step = 5
+        elif max_abs <= 50:
+            step = 10
+        elif max_abs <= 100:
+            step = 20
+        else:
+            step = 50
+
+        axis_max = max(math.ceil(max_abs / step) * step, step)
+
+        # Title pane to match the summary boxes
+        title_pane = pn.pane.HTML(
+            f"""
+            <div style="font-size: 0.95rem; font-weight: 700; color: var(--neutral-foreground-rest, #022c22); margin-bottom: 2px;">My XIRR vs Index Return</div>
+            <div style="font-size: 0.78rem; font-weight: 600; color: var(--neutral-foreground-hint, #64748b); margin-bottom: 24px; text-transform: uppercase;">{fy_label}</div>
+            """
+        )
 
         # Container for all rows
         chart_column = pn.Column(
-            sizing_mode="stretch_width", styles={"gap": "14px", "padding": "4px 0 8px"}
+            title_pane,
+            sizing_mode="stretch_width",
+            styles={
+                "gap": "14px",
+                "padding": "20px",
+                "background": "var(--neutral-fill-layer-rest, rgba(0,0,0,0.015))",
+                "border": "1px solid var(--neutral-stroke-divider-rest, #e5e7eb)",
+                "border-radius": "12px",
+            },
         )
 
         for row in rows:
@@ -150,7 +179,7 @@ class FYXirrPanel:
             )
 
             track_html = f"""
-            <div style="position: relative; width: 100%; min-height: 36px; margin: 0 60px;">
+            <div style="position: relative; width: calc(100% - 120px); min-height: 36px; margin: 0 60px;">
                 <div style="position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background-color: var(--neutral-stroke-divider-rest); z-index: 1;"></div>
                 <div style="height: 34px; position: absolute; top: 1px; width: {width_pct:.1f}%; {bar_pos_styles} background: {bar_bg}; z-index: 2; transition: width 0.4s ease; min-width: 2px;">
                     <span style="position: absolute; top: 50%; transform: translateY(-50%); white-space: nowrap; font-size: 0.78rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; color: #fff; min-width: 60px; text-align: center; background-color: {badge_bg}; {badge_pos_styles}">{badge_txt}</span>
@@ -171,7 +200,7 @@ class FYXirrPanel:
 
         # 3. Add X-axis row at the bottom
         axis_html = f"""
-        <div style="position: relative; width: 100%; min-height: 24px; margin: 0 60px; border-top: 1px solid var(--neutral-stroke-divider-rest);">
+        <div style="position: relative; width: calc(100% - 120px); min-height: 24px; margin: 0 60px; border-top: 1px solid var(--neutral-stroke-divider-rest);">
             <div style="position: absolute; top: 6px; transform: translateX(-50%); font-size: 0.72rem; color: var(--neutral-foreground-hint); left: 0%;">-{axis_max}%</div>
             <div style="position: absolute; top: 6px; transform: translateX(-50%); font-size: 0.72rem; color: var(--neutral-foreground-hint); left: 25%;">-{axis_max/2:g}%</div>
             <div style="position: absolute; top: 6px; transform: translateX(-50%); font-size: 0.72rem; color: var(--neutral-foreground-hint); left: 50%;">0%</div>
@@ -191,6 +220,103 @@ class FYXirrPanel:
         chart_column.append(axis_row)
 
         return chart_column
+
+    def _build_summary_boxes(self, fy_data: dict) -> pn.Column:
+        total_buy = fy_data.get("total_buy", 0.0)
+        total_sell = fy_data.get("total_sell", 0.0)
+        start_val = fy_data.get("start_value", 0.0)
+        end_val = fy_data.get("end_value", 0.0)
+
+        def _fmt(v):
+            if v >= 10000000:
+                return f"₹ {v/10000000:.2f} Cr"
+            elif v >= 100000:
+                return f"₹ {v/100000:.1f}L"
+            else:
+                return f"₹ {v:,.0f}"
+
+        max_tx = max(total_buy, total_sell) if max(total_buy, total_sell) > 0 else 1.0
+        buy_pct = min((total_buy / max_tx) * 100, 100)
+        sell_pct = min((total_sell / max_tx) * 100, 100)
+
+        net_flow = total_buy - total_sell
+        net_color = "#16a34a" if net_flow >= 0 else "#dc2626"
+        net_sign = "+" if net_flow >= 0 else "-"
+        net_label = "Net Investment" if net_flow >= 0 else "Net Withdrawal"
+
+        tx_html = f"""
+        <div style="background: var(--neutral-fill-layer-rest, rgba(0,0,0,0.015)); border: 1px solid var(--neutral-stroke-divider-rest, #e5e7eb); border-radius: 12px; padding: 20px; width: 100%; box-sizing: border-box; height: 100%; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--neutral-foreground-rest, #022c22); margin-bottom: 24px;">Transaction Summary</div>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: var(--neutral-foreground-hint, #64748b); margin-bottom: 6px; text-transform: uppercase;">
+                    <span>Total Buy Value</span>
+                    <span style="color: var(--neutral-foreground-rest, #022c22); font-weight: 800;">{_fmt(total_buy)}</span>
+                </div>
+                <div style="height: 10px; background: var(--neutral-stroke-divider-rest, #f1f5f9); border-radius: 5px; margin-bottom: 18px; overflow: hidden;">
+                    <div style="height: 100%; width: {buy_pct}%; background: #064e3b; border-radius: 5px; transition: width 0.5s ease;"></div>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: var(--neutral-foreground-hint, #64748b); margin-bottom: 6px; text-transform: uppercase;">
+                    <span>Total Sell Value</span>
+                    <span style="color: var(--neutral-foreground-rest, #334155); font-weight: 800;">{_fmt(total_sell)}</span>
+                </div>
+                <div style="height: 10px; background: var(--neutral-stroke-divider-rest, #f1f5f9); border-radius: 5px; margin-bottom: 12px; overflow: hidden;">
+                    <div style="height: 100%; width: {sell_pct}%; background: #64748b; border-radius: 5px; transition: width 0.5s ease;"></div>
+                </div>
+            </div>
+            
+            <div style="display: flex; align-items: baseline; gap: 8px; margin-top: 12px;">
+                <span style="color: {net_color}; font-size: 1.15rem; font-weight: 800;">{net_sign}{_fmt(abs(net_flow))}</span>
+                <span style="color: var(--neutral-foreground-hint, #64748b); font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">{net_label}</span>
+            </div>
+        </div>
+        """
+
+        max_port = max(start_val, end_val) if max(start_val, end_val) > 0 else 1.0
+        start_pct = min((start_val / max_port) * 100, 100)
+        end_pct = min((end_val / max_port) * 100, 100)
+
+        abs_gain = end_val - start_val
+
+        gain_color = "#16a34a" if abs_gain >= 0 else "#dc2626"
+        gain_sign = "+" if abs_gain >= 0 else "-"
+
+        port_html = f"""
+        <div style="background: var(--neutral-fill-layer-rest, rgba(0,0,0,0.015)); border: 1px solid var(--neutral-stroke-divider-rest, #e5e7eb); border-radius: 12px; padding: 20px; width: 100%; box-sizing: border-box; height: 100%; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <div style="font-size: 0.95rem; font-weight: 700; color: var(--neutral-foreground-rest, #022c22); margin-bottom: 24px;">Portfolio Growth</div>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: var(--neutral-foreground-hint, #64748b); margin-bottom: 6px; text-transform: uppercase;">
+                    <span>Start Value</span>
+                    <span style="color: var(--neutral-foreground-rest, #334155); font-weight: 800;">{_fmt(start_val)}</span>
+                </div>
+                <div style="height: 10px; background: var(--neutral-stroke-divider-rest, #f1f5f9); border-radius: 5px; margin-bottom: 18px; overflow: hidden;">
+                    <div style="height: 100%; width: {start_pct}%; background: #94a3b8; border-radius: 5px; transition: width 0.5s ease;"></div>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 700; color: var(--neutral-foreground-hint, #64748b); margin-bottom: 6px; text-transform: uppercase;">
+                    <span>End Value</span>
+                    <span style="color: var(--neutral-foreground-rest, #022c22); font-weight: 800;">{_fmt(end_val)}</span>
+                </div>
+                <div style="height: 10px; background: var(--neutral-stroke-divider-rest, #f1f5f9); border-radius: 5px; margin-bottom: 12px; overflow: hidden;">
+                    <div style="height: 100%; width: {end_pct}%; background: #064e3b; border-radius: 5px; transition: width 0.5s ease;"></div>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: baseline; gap: 8px; margin-top: 12px;">
+                <span style="color: {gain_color}; font-size: 1.15rem; font-weight: 800;">{gain_sign}{_fmt(abs(abs_gain))}</span>
+                <span style="color: var(--neutral-foreground-hint, #64748b); font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">Absolute Gain</span>
+            </div>
+        </div>
+        """
+
+        return pn.Column(
+            pn.pane.HTML(tx_html, sizing_mode="stretch_width", margin=(0, 0, 16, 0)),
+            pn.pane.HTML(port_html, sizing_mode="stretch_width", margin=0),
+            sizing_mode="fixed",
+            width=280,
+        )
 
     # ------------------------------------------------------------------
     # Private – layout
@@ -224,34 +350,40 @@ class FYXirrPanel:
             ),
             fy_selector,
             align="center",
-            styles={"justify-content": "flex-end"},
+            styles={"justify-content": "flex-start"},
             sizing_mode="stretch_width",
         )
 
-        # ---- Title and subtitle ----
-        chart_title = pn.Column(
-            pn.pane.HTML(
-                '<div style="font-size: 1.05rem; font-weight: 700; color: var(--neutral-foreground-rest); margin-bottom: 2px;">My XIRR vs Index Return</div>'
+        # ---- Chart and Summary Area ----
+        default_fy_data = self._get_fy_xirr_series().get(default_fy, {})
+        chart_area = pn.Row(
+            pn.Column(
+                self._build_chart_column(default_fy),
+                sizing_mode="stretch_width",
+                min_width=400,
             ),
-            pn.pane.HTML(
-                f'<div style="font-size: 0.78rem; color: var(--neutral-foreground-hint); margin-bottom: 14px;">{default_fy}</div>'
-            ),
+            self._build_summary_boxes(default_fy_data),
             sizing_mode="stretch_width",
-        )
-
-        # ---- Bar chart area ----
-        chart_area = pn.Column(
-            self._build_chart_column(default_fy),
-            sizing_mode="stretch_width",
+            styles={
+                "gap": "24px",
+                "align-items": "stretch",
+                "flex-wrap": "wrap",
+                "margin-top": "8px",
+            },
         )
 
         # ---- FY selector callback ----
         def on_fy_change(event):
             fy = event.new
-            chart_title[
-                1
-            ].object = f'<div style="font-size: 0.78rem; color: var(--neutral-foreground-hint); margin-bottom: 14px;">{fy}</div>'
-            chart_area.objects = [self._build_chart_column(fy)]
+            fy_data = self._get_fy_xirr_series().get(fy, {})
+            chart_area.objects = [
+                pn.Column(
+                    self._build_chart_column(fy),
+                    sizing_mode="stretch_width",
+                    min_width=400,
+                ),
+                self._build_summary_boxes(fy_data),
+            ]
 
         fy_selector.param.watch(on_fy_change, "value")
 
@@ -259,7 +391,6 @@ class FYXirrPanel:
         self.layout.objects = [
             pn.Column(
                 controls_row,
-                chart_title,
                 chart_area,
                 styles={"padding": "4px 0"},
                 sizing_mode="stretch_width",
