@@ -152,31 +152,21 @@ def prepare_stocks_tab_data_progressive():
 
 
 def check_data_files_up_to_date() -> bool:
-    """Check if the Zerodha data files were modified today."""
+    """Check if the Zerodha master data files were modified today."""
     today = date.today()
+
+    # Check Master Files primarily
     files_to_check = [
-        const.DOCS_PATH / const.HOLDING_EXCEL_ZERODHA,
+        const.DOCS_MASTER_PATH / const.HOLDINGS_MASTER,
+        const.DOCS_MASTER_PATH / const.LEDGER_MASTER,
+        const.DOCS_MASTER_PATH / const.TRADEBOOK_MASTER,
     ]
-
-    # Tradebook
-    tb_files = list(const.DOCS_PATH.glob(f"{const.TRADEBOOK_ID_ZERODHA}*"))
-    if tb_files:
-        latest_tb = max(tb_files, key=lambda f: f.stat().st_mtime)
-        files_to_check.append(latest_tb)
-    else:
-        return False
-
-    # Ledger
-    ld_files = list(const.DOCS_PATH.glob(f"{const.LEDGER_ID_ZERODHA}*.csv"))
-    if ld_files:
-        latest_ld = max(ld_files, key=lambda f: f.stat().st_mtime)
-        files_to_check.append(latest_ld)
-    else:
-        return False
 
     for file_path in files_to_check:
         if not file_path.exists():
+            # If a master file is missing, we are definitely NOT up to date
             return False
+
         mod_time = datetime.fromtimestamp(file_path.stat().st_mtime).date()
         if mod_time < today:
             return False

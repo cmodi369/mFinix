@@ -29,6 +29,11 @@ class MasterSourceDataManager:
         for path in [self.raw_path, self.master_path, self.archive_path]:
             path.mkdir(parents=True, exist_ok=True)
 
+    def archive_master(self, master_name: str):
+        """Archive a master file by its filename."""
+        master_file_path = self.master_path / master_name
+        self._archive_file(master_file_path)
+
     def _archive_file(self, file_path: Path):
         """Move a file to the archive folder with a timestamp."""
         if not file_path.exists():
@@ -36,7 +41,25 @@ class MasterSourceDataManager:
 
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         archive_name = f"{timestamp}_{file_path.name}"
-        shutil.copy(file_path, self.archive_path / archive_name)
+        target_path = self.archive_path / archive_name
+        shutil.copy(file_path, target_path)
+        log.info(f"Archived {file_path.name} to {target_path}")
+
+    def save_dataframes_to_excel(
+        self, dataframes: dict[str, pd.DataFrame], master_filename: str
+    ) -> Path:
+        """
+        Save multiple dataframes to an Excel file with specific sheet names.
+        Does NOT automatically archive; call archive_master separately if needed.
+        """
+        master_file_path = self.master_path / master_filename
+
+        with pd.ExcelWriter(master_file_path, engine="openpyxl") as writer:
+            for sheet_name, df in dataframes.items():
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+        log.info(f"Updated master file (overwritten): {master_file_path}")
+        return master_file_path
 
     def save_raw_file(
         self, content: bytes, source: str, original_filename: str

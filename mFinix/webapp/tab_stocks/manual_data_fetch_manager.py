@@ -76,48 +76,22 @@ class ManualDataFetchManager:
         return [self._layout]
 
     def _get_file_timestamp(self, file_type: str) -> str:
-        """Get formatting timestamp for the appropriate file type."""
-        docs_path = const.DOCS_PATH
+        """Get formatting timestamp for the appropriate file type from Master records."""
         master_path = const.DOCS_MASTER_PATH
 
-        if file_type == "Holdings":
-            # Check master first
-            p = master_path / const.HOLDINGS_MASTER
-            if not p.exists():
-                p = docs_path / const.HOLDING_EXCEL_ZERODHA  # old location
+        mapping = {
+            "Holdings": const.HOLDINGS_MASTER,
+            "Ledger": const.LEDGER_MASTER,
+            "Tradebook": const.TRADEBOOK_MASTER,
+        }
 
+        if file_type in mapping:
+            p = master_path / mapping[file_type]
             if p.exists():
                 return datetime.fromtimestamp(p.stat().st_mtime).strftime(
                     "%Y-%m-%d %H:%M:%S"
                 )
 
-        elif file_type == "Ledger":
-            p = master_path / const.LEDGER_MASTER
-            if p.exists():
-                return datetime.fromtimestamp(p.stat().st_mtime).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-
-            files = list(docs_path.glob(f"{const.LEDGER_ID_ZERODHA}*.csv"))
-            if files:
-                latest = max(files, key=lambda f: f.stat().st_mtime)
-                return datetime.fromtimestamp(latest.stat().st_mtime).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-
-        elif file_type == "Tradebook":
-            p = master_path / const.TRADEBOOK_MASTER
-            if p.exists():
-                return datetime.fromtimestamp(p.stat().st_mtime).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-
-            files = list(docs_path.glob(f"{const.TRADEBOOK_ID_ZERODHA}*.csv"))
-            if files:
-                latest = max(files, key=lambda f: f.stat().st_mtime)
-                return datetime.fromtimestamp(latest.stat().st_mtime).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
         return "Not Found"
 
     def _show_data_modal(self, data_type: str):
@@ -330,10 +304,30 @@ class ManualDataFetchManager:
                 raw_path = self.data_manager.save_raw_file(
                     file_input.value, source, const.HOLDING_EXCEL_ZERODHA
                 )
-                # Master holdings is usually just overwritten for Zerodha as it's a full state
-                self.data_manager.merge_and_update_master(
-                    raw_path, const.HOLDINGS_MASTER, subset_cols=["ISIN", "Symbol"]
-                )
+
+                # Archive current master before replacement
+                self.data_manager.archive_master(const.HOLDINGS_MASTER)
+
+                # Process raw file to get "Cleaned" data
+                try:
+                    # Zerodha usually has these two sheets
+                    sheets = pd.read_excel(
+                        raw_path, sheet_name=["Equity", "Mutual Funds"], header=None
+                    )
+                    cleaned_data = {
+                        "Equity": rkd._HoldingProcessor.process(sheets["Equity"]),
+                        "Mutual Funds": rkd._HoldingProcessor.process(
+                            sheets["Mutual Funds"]
+                        ),
+                    }
+
+                    # Save as the new master file (replacing the old one)
+                    self.data_manager.save_dataframes_to_excel(
+                        cleaned_data, const.HOLDINGS_MASTER
+                    )
+                except Exception as e:
+                    log.error(f"Failed to process and replace holdings master: {e}")
+                    raise
             elif step_idx == 1:
                 # Ledger
                 raw_path = self.data_manager.save_raw_file(
