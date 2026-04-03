@@ -25,6 +25,25 @@ def run_once(method):
     return wrapper
 
 
+def get_status_icon(row):
+    """Generate HTML status icon with tooltip for a row."""
+    is_discrepancy = row[col.IS_DISCREPANCY]
+    if is_discrepancy:
+        expected = row.get(col.TOTAL_QUANTITY, 0)
+        actual = row.get(col.HOLDING_QUANTITY, 0)
+        title = f"Discrepancy: Expected {expected} but broker says {actual}"
+        color = "#e74c3c"
+        bg = "rgba(231, 76, 60, 0.1)"
+        icon = "exclamation"
+    else:
+        title = "Quantity matches broker holdings"
+        color = "#2ecc71"
+        bg = "rgba(46, 204, 113, 0.1)"
+        icon = "check"
+
+    return f'<div class="status-icon" style="background-color: {bg}; color: {color};" title="{title}"><i class="fa-solid fa-{icon}"></i></div>'
+
+
 def prepare_stocks_tab_data() -> dict:
     """Prepare all data required for the Stocks tab.
 
@@ -74,11 +93,6 @@ def prepare_stocks_tab_data() -> dict:
         stocks_xirr_df[col.IS_DISCREPANCY] = stocks_xirr_df[col.TOTAL_QUANTITY] != 0
 
     # Add HTML icons for advanced visualization
-    def get_status_icon(row):
-        if row[col.IS_DISCREPANCY]:
-            return f'<i class="fa fa-exclamation-triangle" style="color: #e74c3c;" title="Discrepancy: Expected {row[col.TOTAL_QUANTITY]} but broker says {row[col.HOLDING_QUANTITY]}"></i>'
-        return '<i class="fa fa-check-circle" style="color: #2ecc71;" title="Quantity matches broker holdings"></i>'
-
     stocks_xirr_df[col.STATUS_ICON] = stocks_xirr_df.apply(get_status_icon, axis=1)
 
     stocks_data["stocks_xirr_data"] = stocks_xirr_df
@@ -129,11 +143,6 @@ def prepare_stocks_tab_data_progressive():
     else:
         stocks_xirr_df[col.HOLDING_QUANTITY] = 0
         stocks_xirr_df[col.IS_DISCREPANCY] = stocks_xirr_df[col.TOTAL_QUANTITY] != 0
-
-    def get_status_icon(row):
-        if row[col.IS_DISCREPANCY]:
-            return f'<i class="fa fa-exclamation-triangle" style="color: #e74c3c;" title="Discrepancy: Expected {row[col.TOTAL_QUANTITY]} but broker says {row[col.HOLDING_QUANTITY]}"></i>'
-        return '<i class="fa fa-check-circle" style="color: #2ecc71;" title="Quantity matches broker holdings"></i>'
 
     stocks_xirr_df[col.STATUS_ICON] = stocks_xirr_df.apply(get_status_icon, axis=1)
     stocks_data["stocks_xirr_data"] = stocks_xirr_df

@@ -17,6 +17,7 @@ from mFinix.webapp.tab_stocks.manual_data_fetch_manager import ManualDataFetchMa
 from mFinix.webapp.tab_stocks.transactions_layout import TransactionsManager
 from mFinix.webapp.tab_stocks.utility import (
     check_data_files_up_to_date,
+    get_status_icon,
     prepare_stocks_tab_data,
 )
 from mFinix.webapp.webapp_constants import UIStyles
@@ -324,19 +325,7 @@ class TabStocks:
         # Apply HTML formatters to the dataframe before updating table value
         df = self.tab_data["stocks_xirr_data"].copy()
 
-        # Status Icon Formatter
-        def format_status(row):
-            is_discrepancy = row[col.IS_DISCREPANCY]
-            color = "#e74c3c" if is_discrepancy else "#2ecc71"
-            bg = (
-                "rgba(231, 76, 60, 0.1)"
-                if is_discrepancy
-                else "rgba(46, 204, 113, 0.1)"
-            )
-            icon = "exclamation" if is_discrepancy else "check"
-            return f'<div class="status-icon" style="background-color: {bg}; color: {color};"><i class="fa-solid fa-{icon}"></i></div>'
-
-        # Stock Name Formatter
+        # Status Icon Formatter handled by utility.get_status_icon
         def format_stock_name(row):
             symbol = row[col.SYMBOL]
             isin = row.get(col.ISIN, "")
@@ -350,7 +339,7 @@ class TabStocks:
             sign = "+" if val >= 0 else ""
             return f'<div class="pnl-container"><div class="pnl-value" style="color: {color};">{sign}₹ {val:,.2f}</div><div class="pnl-percent" style="color: {color};">{perc:+.2f}%</div></div>'
 
-        df[col.STATUS_ICON] = df.apply(format_status, axis=1)
+        df[col.STATUS_ICON] = df.apply(get_status_icon, axis=1)
         df[col.SYMBOL] = df.apply(format_stock_name, axis=1)
         df[col.PNL] = df.apply(format_pnl, axis=1)
         df[col.PNL_PERCENTAGE] = ""  # Hidden or merged
