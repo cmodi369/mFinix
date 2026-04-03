@@ -74,15 +74,25 @@ def prepare_stocks_tab_data() -> dict:
     # Merge holding quantity and identify discrepancies
     stocks_xirr_df = stocks_data["stocks_xirr_data"]
     if not equity_holdings.empty:
-        # Aggregate holdings by ISIN to prevent row duplication on merge
-        holding_agg = equity_holdings.groupby(col.ISIN, as_index=False)[
-            col.HOLDING_QUANTITY
-        ].sum()
+        # Aggregate holdings by ISIN and Symbol to prevent row duplication on merge
+        isin_agg = (
+            equity_holdings.groupby(col.ISIN)[col.HOLDING_QUANTITY].sum().to_dict()
+        )
+        symbol_agg = (
+            equity_holdings.groupby(col.SYMBOL)[col.HOLDING_QUANTITY].sum().to_dict()
+        )
 
-        # Merge by ISIN
-        stocks_xirr_df = stocks_xirr_df.merge(
-            holding_agg, on=col.ISIN, how="left"
-        ).fillna({col.HOLDING_QUANTITY: 0})
+        # First match by ISIN
+        stocks_xirr_df[col.HOLDING_QUANTITY] = (
+            stocks_xirr_df[col.ISIN].map(isin_agg).fillna(0)
+        )
+
+        # Fallback to Symbol if ISIN match failed (quantity is 0)
+        # This handles cases where ISIN has changed due to corporate actions
+        mask = stocks_xirr_df[col.HOLDING_QUANTITY] == 0
+        stocks_xirr_df.loc[mask, col.HOLDING_QUANTITY] = (
+            stocks_xirr_df.loc[mask, col.SYMBOL].map(symbol_agg).fillna(0)
+        )
 
         # Flag discrepancies
         stocks_xirr_df[col.IS_DISCREPANCY] = (
@@ -126,15 +136,25 @@ def prepare_stocks_tab_data_progressive():
     yield {"status": "Merging Holdings and Identifying Discrepancies..."}
     stocks_xirr_df = stocks_data["stocks_xirr_data"]
     if not equity_holdings.empty:
-        # Aggregate holdings by ISIN to prevent row duplication on merge
-        holding_agg = equity_holdings.groupby(col.ISIN, as_index=False)[
-            col.HOLDING_QUANTITY
-        ].sum()
+        # Aggregate holdings by ISIN and Symbol to prevent row duplication on merge
+        isin_agg = (
+            equity_holdings.groupby(col.ISIN)[col.HOLDING_QUANTITY].sum().to_dict()
+        )
+        symbol_agg = (
+            equity_holdings.groupby(col.SYMBOL)[col.HOLDING_QUANTITY].sum().to_dict()
+        )
 
-        # Merge by ISIN
-        stocks_xirr_df = stocks_xirr_df.merge(
-            holding_agg, on=col.ISIN, how="left"
-        ).fillna({col.HOLDING_QUANTITY: 0})
+        # First match by ISIN
+        stocks_xirr_df[col.HOLDING_QUANTITY] = (
+            stocks_xirr_df[col.ISIN].map(isin_agg).fillna(0)
+        )
+
+        # Fallback to Symbol if ISIN match failed (quantity is 0)
+        # This handles cases where ISIN has changed due to corporate actions
+        mask = stocks_xirr_df[col.HOLDING_QUANTITY] == 0
+        stocks_xirr_df.loc[mask, col.HOLDING_QUANTITY] = (
+            stocks_xirr_df.loc[mask, col.SYMBOL].map(symbol_agg).fillna(0)
+        )
 
         # Flag discrepancies
         stocks_xirr_df[col.IS_DISCREPANCY] = (

@@ -336,12 +336,21 @@ class FYXirrPanel:
             options=available_fys,
             value=default_fy,
             width=140,
+            stylesheets=[
+                """
+            .bk-input {
+                border: 1px solid #86868b !important;
+                border-radius: 6px !important;
+            }
+        """
+            ],
         )
         controls_row = pn.Row(
             pn.pane.HTML(
                 '<span style="font-size:0.82rem;font-weight:600;'
                 'color:var(--neutral-foreground-hint);letter-spacing:0.06em;">'
-                "SELECT FY</span>"
+                "SELECT FY</span>",
+                margin=(10, 0, 10, 5),
             ),
             fy_selector,
             align="center",

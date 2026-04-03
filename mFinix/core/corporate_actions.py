@@ -42,6 +42,26 @@ def add_corporate_actions_in_tradebook(trade_data: pd.DataFrame):
     buyback_data[col.TRADE_TYPE] = const.BUYBACK
     buyback_data[col.TRANSACTION_AMOUNT] = 0
 
+    # Handle mergers/demergers where we need to close parent positions
+    # (specifically mergers where the old stock is replaced)
+    if not merger_data.empty and col.PARENT_SYMBOL in merger_data.columns:
+        merger_offsets = []
+        for _, row in merger_data.iterrows():
+            parent_sym = row.get(col.PARENT_SYMBOL)
+            parent_qty = row.get(col.PARENT_QUANTITY)
+            if pd.notna(parent_sym) and pd.notna(parent_qty) and parent_qty != 0:
+                merger_offsets.append(
+                    {
+                        col.SYMBOL: parent_sym,
+                        col.TRADE_DATE: row[col.TRADE_DATE],
+                        col.QUANTITY: -float(parent_qty),
+                        col.TRADE_TYPE: const.MERGER,
+                        col.TRANSACTION_AMOUNT: 0,
+                    }
+                )
+        if merger_offsets:
+            merger_data = pd.concat([merger_data, pd.DataFrame(merger_offsets)])
+
     # Combine all quantity-affecting transactions
     ret_data = pd.concat(
         [
@@ -218,7 +238,15 @@ def _read_local_corporate_actions_data():
         const.IPO_CSV, [col.SYMBOL, col.ISIN, col.TRADE_DATE, col.QUANTITY, col.PRICE]
     )
     merger_data = load_csv_safe(
-        const.MERGER_CSV, [col.SYMBOL, col.TRADE_DATE, col.QUANTITY]
+        const.MERGER_CSV,
+        [
+            col.SYMBOL,
+            col.TRADE_DATE,
+            col.QUANTITY,
+            col.PARENT_SYMBOL,
+            col.PARENT_QUANTITY,
+            col.RATIO,
+        ],
     )
     demerger_data = load_csv_safe(
         const.DEMERGER_CSV,
