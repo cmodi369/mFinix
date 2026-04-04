@@ -22,6 +22,9 @@ from mFinix.core.corporate_actions import (
 from mFinix.util import log
 from mFinix.webapp.components.progress_logger import ProgressLogger
 from mFinix.webapp.components.wizard_step_header import WizardStepHeader
+from mFinix.webapp.tab_stocks.corporate_events_manager.bonus_inputs_manager import (
+    BonusInputsManager,
+)
 from mFinix.webapp.tab_stocks.corporate_events_manager.demerger_inputs_manager import (
     DemergerInputsManager,
 )
@@ -497,8 +500,8 @@ class AutoCorporateActionsManager:
                 }
             )
 
-        is_demerger = action_type == const.DEMERGER
-        if is_demerger:
+        is_manual_review = action_type in [const.DEMERGER, const.BONUS]
+        if is_manual_review:
             table_buttons = {"add": "➕"}
         else:
             table_buttons = {"approve": "✅", "reject": "❌"}
@@ -586,8 +589,11 @@ class AutoCorporateActionsManager:
             if event.row >= len(actions):
                 return
             action = actions[event.row]
-            if event.column == "add" and action_type == const.DEMERGER:
-                self._open_demerger_modal(action)
+            if event.column == "add":
+                if action_type == const.DEMERGER:
+                    self._open_demerger_modal(action)
+                elif action_type == const.BONUS:
+                    self._open_bonus_modal(action)
             elif event.column == "approve":
                 self._approve_single(action)
             elif event.column == "reject":
@@ -643,6 +649,70 @@ class AutoCorporateActionsManager:
             title="Add Demerger Details",
             back_cb=self._reopen_self,
         )
+
+    def _open_bonus_modal(self, action: Dict):
+        """Transition to the Add Bonus Details sub-modal."""
+        if self.panel_modal is None:
+            return
+
+        event_widgets = {}
+        event_widgets["submit_button"] = pn.widgets.Button(
+            name="✅ Submit", button_type="success", width=140
+        )
+
+        temp_layout = pn.Column(sizing_mode="stretch_width")
+
+        mgr = BonusInputsManager(
+            transactions_data=self.transactions_data,
+            holdings_data=self.data_dict["equity_holdings"],
+            widgets=event_widgets,
+            layout=temp_layout,
+        )
+
+        # Pre-fill available values
+        stock = action.get("stock")
+        if stock:
+            mgr.widgets["stock_select"].value = stock
+
+        action_date = action.get("date")
+        if action_date is not None:
+            if hasattr(action_date, "date"):
+                action_date = action_date.date()
+            mgr.widgets["transactions_date_select"].value = action_date
+
+        # Ratio 1:1 -> bonus_ratio = 1.0
+        # Ratio 2:1 -> bonus_ratio = 2.0
+        details = str(action.get("details", ""))
+        import re
+
+        # Match "Ratio X : Y" or "Ratio X:Y" with optional spaces
+        ratio_match = re.search(r"Ratio\s*(\d+)\s*:\s*(\d+)", details, re.I)
+        if ratio_match:
+            new_val = float(ratio_match.group(1))
+            old_val = float(ratio_match.group(2))
+            mgr.widgets["ratio_input"].value = new_val / old_val
+
+        mgr.show_layout()
+
+        def _on_submit(_):
+            res = mgr.process_submission()
+            if res:
+                self._on_bonus_submitted(action)
+
+        event_widgets["submit_button"].on_click(_on_submit)
+
+        self.panel_modal.open(
+            content=[temp_layout],
+            title="Add Bonus Details",
+            back_cb=self._reopen_self,
+        )
+
+    def _on_bonus_submitted(self, action: Dict) -> None:
+        """Remove bonus from list and refresh."""
+        if action in self._pending_actions:
+            self._pending_actions.remove(action)
+        self._render_step()
+        self._refresh_last_update_date()
 
     def _reopen_self(self) -> None:
         """Used as back callback from sub-modals."""
