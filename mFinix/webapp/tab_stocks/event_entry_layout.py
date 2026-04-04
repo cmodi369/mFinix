@@ -45,12 +45,18 @@ class EventDataManager:
 
     @run_once
     def initialize(self):
+        self._initialize_common_widgets()
+
+        self._add_callbacks()
+
         self._ipo_manager = IPOInputsManager(
             self.transactions_data,
             self.equity_holdings_data,
             self.widgets,
             self._layout,
         )
+        # Add callback for auto-fill IPO data when stock is selected for IPO event
+        self._ipo_manager.set_auto_fill_callback(self._auto_fill_ipo_data)
 
         self._bonus_manager = BonusInputsManager(
             self.transactions_data,
@@ -104,10 +110,6 @@ class EventDataManager:
             webapp_const.EventOptions.ADD_DEMERGER: self._demerger_manager.show_layout,
         }
 
-        self._initialize_common_widgets()
-
-        self._add_callbacks()
-
         log.info("Initialize manual events entry layout")
 
     @property
@@ -153,9 +155,6 @@ class EventDataManager:
         self.widgets["submit_button"].on_click(self._on_click_submit_cb)
 
         self.widgets["stock_select"].param.watch(self._update_isin, "value")
-
-        # Add callback for auto-fill IPO data when stock is selected for IPO event
-        self._ipo_manager.set_auto_fill_callback(self._auto_fill_ipo_data)
 
     def show_add_event_inputs_layout(self, event):
         self._event_selected = event.new

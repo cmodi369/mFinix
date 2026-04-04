@@ -48,12 +48,12 @@ class DemergerInputsManager(CorporateEventHandler):
 
         if "quantity_input" not in self.widgets:
             self.widgets["quantity_input"] = CustomFloatInput(
-                name="New Shares Received", disabled=True
+                name="New Shares Received"
             )
 
         if "original_quantity_input" not in self.widgets:
             self.widgets["original_quantity_input"] = CustomFloatInput(
-                name="Original Shares (on record date)", disabled=True
+                name="Original Shares (on record date)"
             )
 
         if "new_stock_input" not in self.widgets:
@@ -142,6 +142,8 @@ class DemergerInputsManager(CorporateEventHandler):
 
         objs.extend(
             [
+                self.widgets["stock_select"],
+                self.widgets["isin_input"],
                 self.widgets["transactions_date_select"],
                 self.widgets["new_stock_input"],
                 pn.Row(

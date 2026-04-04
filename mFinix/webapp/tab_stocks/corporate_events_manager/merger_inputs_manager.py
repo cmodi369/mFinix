@@ -60,7 +60,7 @@ class MergerInputsManager(CorporateEventHandler):
 
         if "quantity_input" not in self.widgets:
             self.widgets["quantity_input"] = CustomFloatInput(
-                name="New Shares Received", disabled=True
+                name="New Shares Received"
             )
 
         if "original_quantity_input" not in self.widgets:
