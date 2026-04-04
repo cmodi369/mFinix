@@ -11,6 +11,7 @@ from mFinix.webapp.panel_modal import PanelModal
 from mFinix.webapp.tab_stocks.auto_corporate_actions_manager import (
     AutoCorporateActionsManager,
 )
+from mFinix.webapp.tab_stocks.buy_sell_analysis_panel import BuySellAnalysisPanel
 from mFinix.webapp.tab_stocks.event_entry_layout import EventDataManager
 from mFinix.webapp.tab_stocks.fy_xirr_panel import FYXirrPanel
 from mFinix.webapp.tab_stocks.manual_data_fetch_manager import ManualDataFetchManager
@@ -62,6 +63,9 @@ class TabStocks:
 
         # initialize FY XIRR analysis panel
         self.fy_panel = FYXirrPanel(self.tab_data)
+
+        # initialize Buy/Sell Analysis panel
+        self.buy_sell_panel = BuySellAnalysisPanel(self.tab_data)
 
         # add callbacks
         self._add_callbacks()
@@ -455,19 +459,35 @@ class TabStocks:
             sizing_mode="stretch_width",
         )
 
-        self.layout.objects = [
-            pn.Column(
-                header_row,
-                pn.layout.Divider(),
-                summary_row,
-                pn.layout.Divider(),
-                fy_section_header,
-                self.fy_panel.layout,
-                footer,
-                pn.layout.Divider(),
-                holdings_header,
-                self.tab_widgets["stocks_xirr_table"],
-                css_classes=["main-container"],
-                sizing_mode="stretch_width",
-            )
-        ]
+        # Portfolio sub-tab content
+        portfolio_content = pn.Column(
+            header_row,
+            pn.layout.Divider(),
+            summary_row,
+            pn.layout.Divider(),
+            fy_section_header,
+            self.fy_panel.layout,
+            footer,
+            pn.layout.Divider(),
+            holdings_header,
+            self.tab_widgets["stocks_xirr_table"],
+            css_classes=["main-container"],
+            sizing_mode="stretch_width",
+        )
+
+        # Buy/Sell Analysis sub-tab content
+        buy_sell_content = pn.Column(
+            self.buy_sell_panel.layout,
+            css_classes=["main-container"],
+            sizing_mode="stretch_width",
+        )
+
+        # Sub-tabs within the Stocks tab
+        sub_tabs = pn.Tabs(
+            ("Portfolio", portfolio_content),
+            ("Buy/Sell Analysis", buy_sell_content),
+            sizing_mode="stretch_width",
+            dynamic=True,
+        )
+
+        self.layout.objects = [sub_tabs]
