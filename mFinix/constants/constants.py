@@ -40,7 +40,7 @@ SPLIT_ACTIONS_CSV: str = "splits.csv"
 MERGER_CSV: str = "merger.csv"
 DEMERGER_CSV: str = "demerger.csv"
 BONUS_CSV: str = "bonus.csv"
-BUYBACK_CSV: str = "buyback.csv"
+BUYBACK_CSV: str = "buybacks.csv"
 IPO_CSV: str = "ipo.csv"
 LAST_DATE_TXT: str = "last_date.txt"
 

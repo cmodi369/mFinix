@@ -41,6 +41,9 @@ def add_corporate_actions_in_tradebook(trade_data: pd.DataFrame):
     bonus_data[col.TRANSACTION_AMOUNT] = 0
     buyback_data[col.TRADE_TYPE] = const.BUYBACK
     buyback_data[col.TRANSACTION_AMOUNT] = 0
+    if not buyback_data.empty:
+        # Ensure buyback quantity is negative so it reduces total holdings
+        buyback_data[col.QUANTITY] = -buyback_data[col.QUANTITY].abs()
 
     # Handle mergers/demergers where we need to close parent positions
     # (specifically mergers where the old stock is replaced)
