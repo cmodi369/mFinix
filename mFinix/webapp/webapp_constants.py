@@ -240,12 +240,47 @@ class UIStyles:
     }
     """
 
+    TRANSACTIONS_TABLE_CSS = """
+    /* Transaction Table Specifics */
+    .transactions-table .tabulator-row {
+        min-height: 60px !important;
+    }
+    
+    .trade-badge {
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        display: inline-block;
+        letter-spacing: 0.02em;
+    }
+    
+    .badge-buy { background-color: rgba(16, 185, 129, 0.1); color: #10b981; }
+    .badge-sell { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; }
+    .badge-dividend { background-color: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+    .badge-split, .badge-bonus, .badge-merger, .badge-demerger { 
+        background-color: rgba(107, 114, 128, 0.1); color: #6b7280; 
+    }
+
+    .amount-positive { color: #10b981; font-weight: 700; }
+    .amount-negative { color: #ef4444; font-weight: 700; }
+    .amount-neutral { color: var(--neutral-foreground-hint); }
+
+    .transaction-stock-cell {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    """
+
     CUSTOM_CSS = (
         MAIN_LAYOUT_CSS
         + SUMMARY_CARD_CSS
         + HEADER_CONTROLS_CSS
         + TABULATOR_CSS
         + CELL_COMPONENTS_CSS
+        + TRANSACTIONS_TABLE_CSS
     )
 
 

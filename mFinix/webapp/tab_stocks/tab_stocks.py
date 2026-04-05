@@ -127,7 +127,6 @@ class TabStocks:
             col.CURRENT_PRICE: "LTP",
             col.PRESENT_VALUE: "Present Value",
             col.PNL: "P&L",
-            col.PNL_PERCENTAGE: "P&L %",
             col.XIRR: "XIRR",
         }
         widgets["stocks_xirr_table"] = pn.widgets.Tabulator(
@@ -136,7 +135,6 @@ class TabStocks:
             pagination="local",
             formatters={
                 col.XIRR: "html",
-                col.PNL_PERCENTAGE: "html",
                 col.QUANTITY: NumberFormatter(format="0,0.0"),
                 col.CURRENT_PRICE: NumberFormatter(format="0,0.00"),
                 col.AVG_BUY_PRICE: NumberFormatter(format="0,0.00"),
@@ -165,7 +163,6 @@ class TabStocks:
                 col.CURRENT_PRICE: "right",
                 col.PRESENT_VALUE: "right",
                 col.PNL: "right",
-                col.PNL_PERCENTAGE: "right",
                 col.XIRR: "right",
             },
             row_height=55,
@@ -322,7 +319,6 @@ class TabStocks:
             col.CURRENT_PRICE,
             col.PRESENT_VALUE,
             col.PNL,
-            col.PNL_PERCENTAGE,
             col.XIRR,
         ]
 
@@ -346,7 +342,6 @@ class TabStocks:
         df[col.STATUS_ICON] = df.apply(get_status_icon, axis=1)
         df[col.SYMBOL] = df.apply(format_stock_name, axis=1)
         df[col.PNL] = df.apply(format_pnl, axis=1)
-        df[col.PNL_PERCENTAGE] = ""  # Hidden or merged
         df[col.XIRR] = df[col.XIRR].apply(
             lambda x: f'<div style="font-weight: 700; color: {UIStyles.POSITIVE_COLOR if x>=0 else UIStyles.NEGATIVE_COLOR};">{x:+.2f}%</div>'
         )

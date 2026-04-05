@@ -1,13 +1,12 @@
 import numpy as np
 import pandas as pd
 import panel as pn
-from bokeh.models.widgets.tables import NumberFormatter
 
 import mFinix.constants.columns as col
 import mFinix.webapp.webapp_constants as webapp_const
 from mFinix.util import log
 from mFinix.webapp.tab_stocks.utility import run_once
-from mFinix.webapp.webapp_constants import COL_NAME_MAPPING, EventOptions
+from mFinix.webapp.webapp_constants import UIStyles
 
 
 class TransactionsManager:
@@ -29,44 +28,44 @@ class TransactionsManager:
 
     @run_once
     def initialize(self):
+        # We will use Python-side formatting to prepare HTML strings in the dataframe,
+        # exactly like the holdings table in tab_stocks.py.
         self.widgets["transactions_table"] = pn.widgets.Tabulator(
-            self.transactions_data[self._columns],
-            titles=COL_NAME_MAPPING,
+            pd.DataFrame(columns=self._columns),
+            titles={
+                col.SYMBOL: "STOCK NAME",
+                col.TRADE_DATE: "TRADE DATE",
+                col.TRADE_TYPE: "TRADE TYPE",
+                col.QUANTITY: "QUANTITY",
+                col.PRICE: "PRICE",
+                col.TRANSACTION_AMOUNT: "TRANSACTION AMOUNT",
+                col.TOTAL_QUANTITY: "TOTAL QUANTITY",
+            },
             show_index=False,
             header_filters=True,
             layout="fit_columns",
             pagination="local",
-            page_size=15,
+            page_size=12,
             disabled=True,
             theme=webapp_const.UIStyles.TABLE_THEME,
+            css_classes=["transactions-table"],
             configuration={
                 "columnHeaderVertAlign": "middle",
-                "renderVertical": "basic",
-            },
-            text_align={
-                col.QUANTITY: "right",
-                col.PRICE: "right",
-                col.TRANSACTION_AMOUNT: "right",
-                col.TOTAL_QUANTITY: "right",
             },
             formatters={
-                col.QUANTITY: NumberFormatter(format="0,0"),
-                col.PRICE: NumberFormatter(format="0,0.00"),
-                col.TRANSACTION_AMOUNT: NumberFormatter(format="0,0.00"),
-                col.TOTAL_QUANTITY: NumberFormatter(format="0,0"),
+                col.SYMBOL: "html",
+                col.TRADE_TYPE: "html",
+                col.QUANTITY: "html",
+                col.PRICE: "html",
+                col.TRANSACTION_AMOUNT: "html",
+                col.TOTAL_QUANTITY: "html",
             },
             sizing_mode="stretch_width",
-            min_height=550,
-        )
-
-        # Apply styles for TRADE_TYPE
-        self.widgets["transactions_table"].style.apply(
-            self._apply_trade_type_color,
-            subset=[col.TRADE_TYPE],
+            min_height=500,
+            row_height=60,
         )
 
         self._add_callbacks()
-
         log.info("Initialize transactions table layout")
 
     @property
@@ -83,23 +82,6 @@ class TransactionsManager:
     def _add_callbacks(self):
         pass
 
-    @staticmethod
-    def _apply_trade_type_color(val):
-        """Color-code Trade Type values"""
-        styles = []
-        for v in val:
-            v_upper = str(v).upper()
-            if v_upper == "BUY":
-                color = webapp_const.UIStyles.POSITIVE_COLOR
-            elif v_upper == "SELL":
-                color = webapp_const.UIStyles.NEGATIVE_COLOR
-            elif v_upper in ["SPLIT", "BONUS", "MERGER", "DEMERGER"]:
-                color = webapp_const.UIStyles.ACCENT_COLOR
-            else:
-                color = webapp_const.UIStyles.NEUTRAL_COLOR
-            styles.append(f"color: {color} !important; font-weight: bold")
-        return styles
-
     def show_selected_transactions(self, selected_isin: str):
         log.info("Open transactions table for %s.", selected_isin)
 
@@ -107,11 +89,15 @@ class TransactionsManager:
         discrepancy_info = None
 
         if selected_isin is None:
-            transactions_data = self.data_dict["transactions_data"]
+            df = self.data_dict["transactions_data"].copy()
         else:
-            transactions_data = self.data_dict["transactions_data"][
-                self.data_dict["transactions_data"][col.ISIN] == selected_isin
-            ].reset_index(drop=True)
+            df = (
+                self.data_dict["transactions_data"][
+                    self.data_dict["transactions_data"][col.ISIN] == selected_isin
+                ]
+                .copy()
+                .reset_index(drop=True)
+            )
 
             # Check for discrepancy
             stock_row = stocks_xirr_data[stocks_xirr_data[col.ISIN] == selected_isin]
@@ -133,6 +119,65 @@ class TransactionsManager:
         else:
             self.widgets["discrepancy_alert"] = pn.Spacer(height=0)
 
-        # update transactions data in table
-        self.widgets["transactions_table"].value = transactions_data[self._columns]
+        # Handle NaNs and data preparation
+        df = df.fillna(0)
+
+        # Apply HTML formatting exactly like in tab_stocks.py
+        def format_stock_cell(row):
+            s = row[col.SYMBOL]
+            return f"""
+                <div class="transaction-stock-cell">
+                    <div class="stock-name" style="font-weight: 700;">{s}</div>
+                </div>
+            """
+
+        def format_trade_type_cell(row):
+            t = str(row[col.TRADE_TYPE]).upper()
+            badge_class = f"badge-{t.lower()}"
+            return f'<span class="trade-badge {badge_class}">{t}</span>'
+
+        def format_qty_cell(row):
+            t = str(row[col.TRADE_TYPE]).upper()
+            v = row[col.QUANTITY]
+            if t in ["SPLIT", "BONUS", "MERGER", "DEMERGER"]:
+                fmt = f"{v}" if v != 0 else "--"
+            else:
+                fmt = f"{v:,.2f}"
+            return f'<div style="text-align: right; font-weight: 500;">{fmt}</div>'
+
+        def format_price_cell(row):
+            t = str(row[col.TRADE_TYPE]).upper()
+            v = row[col.PRICE]
+            if t == "DIVIDEND":
+                fmt = f"₹{v:,.2f} / share"
+            elif t in ["SPLIT", "BONUS", "MERGER", "DEMERGER"]:
+                fmt = "--"
+            else:
+                fmt = f"₹{v:,.2f}"
+            return f'<div style="text-align: right; font-weight: 500;">{fmt}</div>'
+
+        def format_amount_cell(row):
+            v = row[col.TRANSACTION_AMOUNT]
+            if v == 0:
+                return '<div style="text-align: right; color: var(--neutral-foreground-hint);">--</div>'
+            color = UIStyles.POSITIVE_COLOR if v > 0 else UIStyles.NEGATIVE_COLOR
+            sign = "+" if v > 0 else "-"
+            return f'<div style="text-align: right; font-weight: 700; color: {color};">{sign} ₹{abs(v):,.2f}</div>'
+
+        def format_total_qty_cell(row):
+            v = row[col.TOTAL_QUANTITY]
+            return f'<div style="text-align: right; font-weight: 500;">{v:,.1f}</div>'
+
+        # Apply formatters to the relevant columns
+        display_df = df.copy()
+        display_df[col.SYMBOL] = df.apply(format_stock_cell, axis=1)
+        display_df[col.TRADE_TYPE] = df.apply(format_trade_type_cell, axis=1)
+        display_df[col.QUANTITY] = df.apply(format_qty_cell, axis=1)
+        display_df[col.PRICE] = df.apply(format_price_cell, axis=1)
+        display_df[col.TRANSACTION_AMOUNT] = df.apply(format_amount_cell, axis=1)
+        display_df[col.TOTAL_QUANTITY] = df.apply(format_total_qty_cell, axis=1)
+
+        # Update table value
+        self.widgets["transactions_table"].value = display_df[self._columns]
+        # Force a hard refresh
         self.widgets["transactions_table"].param.trigger("value")
