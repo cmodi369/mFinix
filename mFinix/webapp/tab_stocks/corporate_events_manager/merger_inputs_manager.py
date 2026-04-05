@@ -42,11 +42,17 @@ class MergerInputsManager(CorporateEventHandler):
     ) -> None:
         super().__init__(transactions_data, holdings_data, widgets, layout)
 
+        # Get all unique symbols from both transactions and holdings
+        all_symbols = set(self.transactions_data[col.SYMBOL].unique())
+        if self.equity_holdings_data is not None and not self.equity_holdings_data.empty and col.SYMBOL in self.equity_holdings_data:
+            all_symbols.update(self.equity_holdings_data[col.SYMBOL].dropna().unique())
+        all_symbols = sorted(list(all_symbols))
+
         # Initialize merger-specific widgets if not already present
         if "stock_select" not in self.widgets:
             self.widgets["stock_select"] = CustomAutoCompleteInput(
                 name="Old Stock (Merged Out)",
-                options=self.transactions_data[col.SYMBOL].unique().tolist(),
+                options=all_symbols,
                 case_sensitive=False,
             )
 
@@ -71,8 +77,9 @@ class MergerInputsManager(CorporateEventHandler):
         if "new_stock_input" not in self.widgets:
             self.widgets["new_stock_input"] = CustomAutoCompleteInput(
                 name="New Stock Symbol (Resulting)",
-                options=self.transactions_data[col.SYMBOL].unique().tolist(),
+                options=all_symbols,
                 case_sensitive=False,
+                restrict=False,
             )
 
         if "ratio_input" not in self.widgets:
