@@ -9,24 +9,24 @@ import mFinix.constants.columns as col
 from mFinix.constants.constants import BUY
 
 
-def _calculate_weighted_avg_price_for_isin(
-    isin: str,
+def _calculate_weighted_avg_price_for_symbol(
+    symbol: str,
     quantity: float,
     transactions_data: pd.DataFrame,
 ) -> float:
-    """Calculate weighted average buy price for a single ISIN.
+    """Calculate weighted average buy price for a single symbol.
 
     Calculates the average buy price by taking the latest buy transactions
+    and corporate action additions.
 
     Parameters
     ----------
-    isin : str
-        The ISIN identifier for the stock.
+    symbol : str
+        The Symbol identifier for the stock.
     quantity : float
         The total quantity to calculate average price for.
     transactions_data : pd.DataFrame
-        DataFrame containing all buy transactions with columns: ISIN, TRADE_TYPE,
-        TRADE_DATE, QUANTITY, PRICE.
+        DataFrame containing all transactions.
 
     Returns
     -------
@@ -34,13 +34,21 @@ def _calculate_weighted_avg_price_for_isin(
         The weighted average buy price for the given quantity.
         Returns 0 if quantity is zero or no transactions are found.
     """
+    from mFinix.constants.constants import BONUS, BUY, DEMERGER, MERGER, STOCK_SPLIT
+
     if quantity <= 0:
         return 0.0
 
     # Filter and sort buy transactions in reverse chronological order
+    # Include corporate actions that increase quantity as 0-cost buys
     buy_transactions = transactions_data[
-        (transactions_data[col.ISIN] == isin)
-        & (transactions_data[col.TRADE_TYPE] == BUY)
+        (transactions_data[col.SYMBOL] == symbol)
+        & (
+            transactions_data[col.TRADE_TYPE].isin(
+                [BUY, STOCK_SPLIT, BONUS, MERGER, DEMERGER]
+            )
+        )
+        & (transactions_data[col.QUANTITY] > 0)
     ].sort_values(by=col.TRADE_DATE, ascending=False)
 
     if buy_transactions.empty:
@@ -50,11 +58,16 @@ def _calculate_weighted_avg_price_for_isin(
     remaining_quantity = quantity
 
     for _, transaction in buy_transactions.iterrows():
-        if remaining_quantity <= 0:
+        if remaining_quantity <= 0.0001:
             break
 
         transaction_quantity = transaction[col.QUANTITY]
-        transaction_price = transaction[col.PRICE]
+        transaction_price = transaction.get(col.PRICE, 0.0)
+
+        # Ensure price is valid float, defaulting to 0 for corporate actions
+        if pd.isna(transaction_price):
+            transaction_price = 0.0
+
         quantity_to_use = min(transaction_quantity, remaining_quantity)
 
         total_price += quantity_to_use * transaction_price
@@ -76,10 +89,9 @@ def calculate_and_add_avg_buy_for_all_stocks(
     Parameters
     ----------
     transactions_data : pd.DataFrame
-        DataFrame containing all transactions with columns: ISIN, TRADE_TYPE,
-        TRADE_DATE, QUANTITY, PRICE.
+        DataFrame containing all transactions.
     xirr_df : pd.DataFrame
-        DataFrame containing portfolio data with columns: ISIN, TOTAL_QUANTITY.
+        DataFrame containing portfolio data with columns: SYMBOL, TOTAL_QUANTITY.
         Modified in-place to add AVG_BUY_PRICE and BUY_VALUE columns.
 
     Returns
@@ -87,10 +99,10 @@ def calculate_and_add_avg_buy_for_all_stocks(
     None
         Modifies xirr_df in-place by adding two new columns.
     """
-    # Calculate average buy prices for each ISIN
+    # Calculate average buy prices for each Symbol
     avg_buy_prices = [
-        _calculate_weighted_avg_price_for_isin(
-            row[col.ISIN],
+        _calculate_weighted_avg_price_for_symbol(
+            row[col.SYMBOL],
             row[col.TOTAL_QUANTITY],
             transactions_data,
         )

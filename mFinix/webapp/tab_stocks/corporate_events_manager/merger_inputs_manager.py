@@ -44,7 +44,11 @@ class MergerInputsManager(CorporateEventHandler):
 
         # Get all unique symbols from both transactions and holdings
         all_symbols = set(self.transactions_data[col.SYMBOL].unique())
-        if self.equity_holdings_data is not None and not self.equity_holdings_data.empty and col.SYMBOL in self.equity_holdings_data:
+        if (
+            self.equity_holdings_data is not None
+            and not self.equity_holdings_data.empty
+            and col.SYMBOL in self.equity_holdings_data
+        ):
             all_symbols.update(self.equity_holdings_data[col.SYMBOL].dropna().unique())
         all_symbols = sorted(list(all_symbols))
 

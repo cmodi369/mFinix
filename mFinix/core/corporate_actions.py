@@ -93,6 +93,11 @@ def add_corporate_actions_in_tradebook(trade_data: pd.DataFrame):
         drop=True
     )
 
+    # Ensure TOTAL_QUANTITY is populated for dividends (forward-filled from last trade)
+    ret_data[col.TOTAL_QUANTITY] = (
+        ret_data.groupby(col.SYMBOL)[col.TOTAL_QUANTITY].ffill().fillna(0)
+    )
+
     return ret_data
 
 
@@ -437,46 +442,25 @@ def fetch_pending_corporate_actions_progressive(
     registry = _PendingActionsRegistry()
 
     if stock_symbol:
-        unique_isins = (
-            trade_data[trade_data[col.SYMBOL] == stock_symbol][col.ISIN]
-            .unique()
-            .tolist()
-        )
+        unique_stocks = [stock_symbol]
     else:
-        unique_isins = [
-            isin for isin in trade_data[col.ISIN].unique() if not pd.isna(isin)
-        ]
-        # Filter trades without ISIN too
-        if trade_data[col.ISIN].isna().any():
-            unique_isins.append(None)
+        unique_stocks = sorted(trade_data[col.SYMBOL].unique().tolist())
 
-    total_stocks = len(unique_isins)
+    total_stocks = len(unique_stocks)
 
-    for i, stock_id in enumerate(unique_isins):
-        if stock_id is None:
-            stock_trade_data = trade_data[trade_data[col.ISIN].isna()]
-            display_name = "Stocks without ISIN"
-        else:
-            stock_trade_data = trade_data[trade_data[col.ISIN].eq(stock_id)]
-            display_name = (
-                stock_trade_data[col.SYMBOL].iloc[0]
-                if not stock_trade_data.empty
-                else str(stock_id)
-            )
+    for i, symbol in enumerate(unique_stocks):
+        stock_trade_data = trade_data[trade_data[col.SYMBOL] == symbol]
+        display_name = symbol
 
-        progress = int((i / total_stocks) * 100) if total_stocks > 0 else 0
-        yield {"status": f"Checking {display_name}...", "progress": progress}
+        # Get ISIN for this stock ID if available (YFinance/NSE sometimes need it)
+        _isins = stock_trade_data[col.ISIN].dropna().unique()
+        stock_id = _isins[0] if len(_isins) > 0 else None
 
         if stock_trade_data.empty:
             continue
 
-        # Check if stock was in portfolio during [effective_date, to_date]
+        # Check if stock was in portfolio at effective_date OR had transactions during [effective_date, to_date]
         _check_end_date = to_date if to_date else date.today()
-        applicable_trades_end = stock_trade_data[
-            stock_trade_data[col.TRADE_DATE] <= _check_end_date
-        ]
-        if applicable_trades_end.empty:
-            continue
 
         applicable_trades_start = stock_trade_data[
             stock_trade_data[col.TRADE_DATE] < effective_date
@@ -494,6 +478,9 @@ def fetch_pending_corporate_actions_progressive(
 
         if qty_at_start <= 0 and trades_during.empty:
             continue
+
+        progress = int((i / total_stocks) * 100) if total_stocks > 0 else 0
+        yield {"status": f"Checking {display_name}...", "progress": progress}
 
         # 1. Fetch from YFinance
         symbol = stock_trade_data[col.SYMBOL].iloc[0]
@@ -520,22 +507,29 @@ def fetch_pending_corporate_actions_progressive(
                     not applicable.empty
                     and (qty := applicable[col.TOTAL_QUANTITY].iloc[-1]) > 0
                 ):
-                    if row[col.DIVIDEND] > 0:
+                    # Robustly check for dividend columns (yfinance may use 'Dividends' or 'Dividend')
+                    div_val = 0
+                    for c in [col.DIVIDEND, "Dividend", "dividend"]:
+                        if c in row:
+                            div_val = row[c]
+                            break
+
+                    if div_val > 0:
                         registry.add(
                             {
                                 "action_type": const.DIVIDEND,
                                 "stock": stock_name,
                                 "isin": stock_id,
                                 "date": dt,
-                                "details": f"₹{row[col.DIVIDEND]:.2f}/share",
+                                "details": f"₹{div_val:.2f}/share",
                                 "quantity": qty,
                                 "raw_data": {
                                     col.SYMBOL: stock_name,
                                     col.ISIN: stock_id,
                                     col.TRADE_DATE: dt,
                                     col.QUANTITY: qty,
-                                    col.DIVIDEND_COL: row[col.DIVIDEND],
-                                    col.TRANSACTION_AMOUNT: qty * row[col.DIVIDEND],
+                                    col.DIVIDEND_COL: div_val,
+                                    col.TRANSACTION_AMOUNT: qty * div_val,
                                 },
                             }
                         )

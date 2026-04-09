@@ -2,6 +2,7 @@
 Auto Corporate Actions Manager for the Stocks tab.
 """
 
+import re
 from datetime import date, datetime
 from typing import Dict, List, Optional
 
@@ -529,6 +530,7 @@ class AutoCorporateActionsManager:
         approve_all_btn.on_click(self._make_approve_all_cb(action_type, actions))
         reject_all_btn.on_click(self._make_reject_all_cb(action_type, actions))
 
+        is_demerger = action_type == const.DEMERGER
         self._content_area.objects = [
             pn.pane.Markdown(f"### {step_meta['label']}"),
             table,
@@ -680,10 +682,7 @@ class AutoCorporateActionsManager:
                 action_date = action_date.date()
             mgr.widgets["transactions_date_select"].value = action_date
 
-        # Ratio 1:1 -> bonus_ratio = 1.0
-        # Ratio 2:1 -> bonus_ratio = 2.0
         details = str(action.get("details", ""))
-        import re
 
         # Match "Ratio X : Y" or "Ratio X:Y" with optional spaces
         ratio_match = re.search(r"Ratio\s*(\d+)\s*:\s*(\d+)", details, re.I)

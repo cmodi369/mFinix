@@ -100,6 +100,11 @@ class TabStocks:
             sizing_mode="stretch_width",
         )
 
+        widgets["portfolio_pnl_card"] = pn.pane.HTML(
+            self._get_summary_card_html("Overall P&L", 0),
+            sizing_mode="stretch_width",
+        )
+
         widgets["portfolio_xirr_card"] = pn.pane.HTML(
             self._get_summary_card_html("Portfolio XIRR", 0, is_percent=True),
             sizing_mode="stretch_width",
@@ -173,14 +178,19 @@ class TabStocks:
 
         return widgets
 
-    def _get_summary_card_html(self, label, value, is_percent=False):
+    def _get_summary_card_html(
+        self, label, value, is_percent=False, sub_text="", value_color=None
+    ):
         """Generate HTML for summary cards"""
         val_str = f"{value:.2f}%" if is_percent else f"₹ {value:,.2f} L"
+
+        color_style = f"color: {value_color};" if value_color else ""
 
         return f"""
         <div class="summary-label">{label}</div>
         <div class="summary-value-container">
-            <div class="summary-value">{val_str}</div>
+            <div class="summary-value" style="{color_style}">{val_str}</div>
+            {sub_text}
         </div>
         """
 
@@ -213,10 +223,34 @@ class TabStocks:
         """Update summary cards with actual data"""
         portfolio_value = self.tab_data["portfolio_value"] / 100000
         portfolio_xirr = self.tab_data["portfolio_xirr"]
-        discrepancy_count = self.tab_data["stocks_xirr_data"][col.IS_DISCREPANCY].sum()
+        stocks_df = self.tab_data["stocks_xirr_data"]
+        discrepancy_count = stocks_df[col.IS_DISCREPANCY].sum()
+
+        invested_value = stocks_df[col.BUY_VALUE].sum() / 100000
+        total_pnl = stocks_df[col.PNL].sum() / 100000
+        pnl_percent = (total_pnl / invested_value * 100) if invested_value > 0 else 0
+
+        pnl_color = (
+            UIStyles.POSITIVE_COLOR if total_pnl >= 0 else UIStyles.NEGATIVE_COLOR
+        )
+
+        invested_sub_text = f"""
+        <div style="font-size: 0.9rem; color: var(--neutral-foreground-hint); font-weight: 500; margin-left: 5px; display: inline-flex;">
+            <span><span style="font-size: 0.75rem; text-transform: uppercase;">Invested</span> ₹ {invested_value:,.2f} L</span>
+        </div>
+        """
+
+        pnl_sub_text = f"""
+        <div style="font-size: 0.9rem; color: {pnl_color}; font-weight: 500; margin-left: 5px; display: inline-flex;">
+            <span>({pnl_percent:+.2f}%)</span>
+        </div>
+        """
 
         self.tab_widgets["portfolio_value_card"].object = self._get_summary_card_html(
-            "Total Value", portfolio_value
+            "Total Value", portfolio_value, sub_text=invested_sub_text
+        )
+        self.tab_widgets["portfolio_pnl_card"].object = self._get_summary_card_html(
+            "Overall P&L", total_pnl, sub_text=pnl_sub_text, value_color=pnl_color
         )
         self.tab_widgets["portfolio_xirr_card"].object = self._get_summary_card_html(
             "Portfolio XIRR", portfolio_xirr, is_percent=True
@@ -392,6 +426,12 @@ class TabStocks:
         summary_row = pn.Row(
             pn.Column(
                 self.tab_widgets["portfolio_value_card"],
+                css_classes=["summary-card"],
+                sizing_mode="stretch_width",
+                min_height=110,
+            ),
+            pn.Column(
+                self.tab_widgets["portfolio_pnl_card"],
                 css_classes=["summary-card"],
                 sizing_mode="stretch_width",
                 min_height=110,

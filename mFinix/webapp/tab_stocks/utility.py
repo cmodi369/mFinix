@@ -98,6 +98,52 @@ def prepare_stocks_tab_data() -> dict:
         stocks_xirr_df[col.IS_DISCREPANCY] = (
             stocks_xirr_df[col.TOTAL_QUANTITY] != stocks_xirr_df[col.HOLDING_QUANTITY]
         )
+
+        # Fallback to broker's Average Price for 0-cost holdings (e.g., demerger cost apportioning)
+        if "Average Price" in equity_holdings.columns:
+            avg_price_symbol_agg = (
+                equity_holdings.groupby(col.SYMBOL)["Average Price"].first().to_dict()
+            )
+            avg_price_isin_agg = (
+                equity_holdings.groupby(col.ISIN)["Average Price"].first().to_dict()
+            )
+
+            # Identify where we hold shares but our calculated cost is exactly 0
+            zero_cost_mask = (stocks_xirr_df[col.AVG_BUY_PRICE] == 0) & (
+                stocks_xirr_df[col.TOTAL_QUANTITY] > 0
+            )
+
+            if zero_cost_mask.any():
+                broker_prices = stocks_xirr_df.loc[zero_cost_mask, col.ISIN].map(
+                    avg_price_isin_agg
+                )
+                broker_prices = broker_prices.fillna(
+                    stocks_xirr_df.loc[zero_cost_mask, col.SYMBOL].map(
+                        avg_price_symbol_agg
+                    )
+                )
+
+                # Apply broker prices where available
+                valid_prices_mask = broker_prices.notna() & (broker_prices > 0)
+                indices_to_update = broker_prices[valid_prices_mask].index
+
+                stocks_xirr_df.loc[indices_to_update, col.AVG_BUY_PRICE] = (
+                    broker_prices[valid_prices_mask]
+                )
+                stocks_xirr_df.loc[indices_to_update, col.BUY_VALUE] = (
+                    stocks_xirr_df.loc[indices_to_update, col.TOTAL_QUANTITY]
+                    * stocks_xirr_df.loc[indices_to_update, col.AVG_BUY_PRICE]
+                )
+
+                # Recalculate P&L for these updated rows
+                stocks_xirr_df.loc[indices_to_update, col.PNL] = (
+                    stocks_xirr_df.loc[indices_to_update, col.PRESENT_VALUE]
+                    - stocks_xirr_df.loc[indices_to_update, col.BUY_VALUE]
+                )
+                stocks_xirr_df.loc[indices_to_update, col.PNL_PERCENTAGE] = (
+                    stocks_xirr_df.loc[indices_to_update, col.PNL]
+                    / stocks_xirr_df.loc[indices_to_update, col.BUY_VALUE]
+                )
     else:
         stocks_xirr_df[col.HOLDING_QUANTITY] = 0
         stocks_xirr_df[col.IS_DISCREPANCY] = stocks_xirr_df[col.TOTAL_QUANTITY] != 0
@@ -160,6 +206,52 @@ def prepare_stocks_tab_data_progressive():
         stocks_xirr_df[col.IS_DISCREPANCY] = (
             stocks_xirr_df[col.TOTAL_QUANTITY] != stocks_xirr_df[col.HOLDING_QUANTITY]
         )
+
+        # Fallback to broker's Average Price for 0-cost holdings (e.g., demerger cost apportioning)
+        if "Average Price" in equity_holdings.columns:
+            avg_price_symbol_agg = (
+                equity_holdings.groupby(col.SYMBOL)["Average Price"].first().to_dict()
+            )
+            avg_price_isin_agg = (
+                equity_holdings.groupby(col.ISIN)["Average Price"].first().to_dict()
+            )
+
+            # Identify where we hold shares but our calculated cost is exactly 0
+            zero_cost_mask = (stocks_xirr_df[col.AVG_BUY_PRICE] == 0) & (
+                stocks_xirr_df[col.TOTAL_QUANTITY] > 0
+            )
+
+            if zero_cost_mask.any():
+                broker_prices = stocks_xirr_df.loc[zero_cost_mask, col.ISIN].map(
+                    avg_price_isin_agg
+                )
+                broker_prices = broker_prices.fillna(
+                    stocks_xirr_df.loc[zero_cost_mask, col.SYMBOL].map(
+                        avg_price_symbol_agg
+                    )
+                )
+
+                # Apply broker prices where available
+                valid_prices_mask = broker_prices.notna() & (broker_prices > 0)
+                indices_to_update = broker_prices[valid_prices_mask].index
+
+                stocks_xirr_df.loc[indices_to_update, col.AVG_BUY_PRICE] = (
+                    broker_prices[valid_prices_mask]
+                )
+                stocks_xirr_df.loc[indices_to_update, col.BUY_VALUE] = (
+                    stocks_xirr_df.loc[indices_to_update, col.TOTAL_QUANTITY]
+                    * stocks_xirr_df.loc[indices_to_update, col.AVG_BUY_PRICE]
+                )
+
+                # Recalculate P&L for these updated rows
+                stocks_xirr_df.loc[indices_to_update, col.PNL] = (
+                    stocks_xirr_df.loc[indices_to_update, col.PRESENT_VALUE]
+                    - stocks_xirr_df.loc[indices_to_update, col.BUY_VALUE]
+                )
+                stocks_xirr_df.loc[indices_to_update, col.PNL_PERCENTAGE] = (
+                    stocks_xirr_df.loc[indices_to_update, col.PNL]
+                    / stocks_xirr_df.loc[indices_to_update, col.BUY_VALUE]
+                )
     else:
         stocks_xirr_df[col.HOLDING_QUANTITY] = 0
         stocks_xirr_df[col.IS_DISCREPANCY] = stocks_xirr_df[col.TOTAL_QUANTITY] != 0
