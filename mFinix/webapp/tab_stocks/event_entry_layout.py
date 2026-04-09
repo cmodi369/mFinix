@@ -27,6 +27,7 @@ from mFinix.webapp.widgets import (
 class EventDataManager:
     def __init__(self, data_dict: dict, widgets: dict):
         self.data_dict = data_dict
+        self.recalculate_cb = None
         self.transactions_data = self.data_dict["transactions_data"]
         self.equity_holdings_data = self.data_dict["equity_holdings"]
         self.widgets = widgets["event_wids"] = {
@@ -174,7 +175,9 @@ class EventDataManager:
 
         manager = manager_mapping.get(self._event_selected)
         if manager:
-            manager.process_submission()
+            result = manager.process_submission()
+            if result and "state" in self.data_dict:
+                self.data_dict["state"].param.trigger("refresh_event")
 
     def _update_isin(self, event):
         self.widgets["isin_input"].value = self.transactions_data[

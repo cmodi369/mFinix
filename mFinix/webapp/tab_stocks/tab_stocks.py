@@ -70,6 +70,12 @@ class TabStocks:
         # add callbacks
         self._add_callbacks()
 
+        # Set up shared state watch for auto-refresh
+        if "state" in self.tab_data:
+            self.tab_data["state"].param.watch(
+                lambda e: self.recalculate(), "refresh_event"
+            )
+
         self.layout = pn.Column()
         self._initial_layout()
 
@@ -381,6 +387,25 @@ class TabStocks:
         )
 
         self.tab_widgets["stocks_xirr_table"].value = df[display_columns]
+
+    def recalculate(self):
+        """Perform a full recalculation and update the UI."""
+        # Update tab-level data while preserving the state object instance
+        old_state = self.tab_data.get("state")
+        new_data = prepare_stocks_tab_data()
+        self.tab_data.update(new_data)
+        if old_state:
+            self.tab_data["state"] = old_state
+
+        # Sync data to children managers (though they share ref, this ensures clarity)
+        self.event_manager.transactions_data = self.tab_data["transactions_data"]
+        self.auto_corp_manager.transactions_data = self.tab_data["transactions_data"]
+        self.transactions_manager.tab_data = self.tab_data
+        self.fy_panel.tab_data = self.tab_data
+        self.buy_sell_panel.tab_data = self.tab_data
+
+        # Refresh UI
+        self._refresh_tables()
 
     def _initial_layout(self):
         """Initialize tab layout"""

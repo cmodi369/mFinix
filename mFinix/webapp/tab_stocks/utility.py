@@ -1,5 +1,7 @@
 from datetime import date, datetime
 
+import param
+
 import mFinix.constants.columns as col
 import mFinix.constants.constants as const
 from mFinix.core.data_processing import prepare_transactions_data
@@ -9,6 +11,12 @@ from mFinix.core.xirr_calculation import (
     calculate_portfolio_xirr_from_ledger,
     calculate_stock_xirr_from_transactions,
 )
+
+
+class StocksTabState(param.Parameterized):
+    """Shared state for the Stocks tab to handle decoupled communication."""
+
+    refresh_event = param.Event()
 
 
 def run_once(method):
@@ -159,6 +167,7 @@ def prepare_stocks_tab_data() -> dict:
         "mf_holdings": mf_holdings,
         "portfolio_xirr": portfolio_xirr,
         "portfolio_value": portfolio_value,
+        "state": StocksTabState(name="StocksTabState"),
         **stocks_data,
     }
 
@@ -267,6 +276,7 @@ def prepare_stocks_tab_data_progressive():
             "mf_holdings": mf_holdings,
             "portfolio_xirr": portfolio_xirr,
             "portfolio_value": portfolio_value,
+            "state": StocksTabState(name="StocksTabState"),
             **stocks_data,
         },
     }

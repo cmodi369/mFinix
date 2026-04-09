@@ -458,8 +458,6 @@ class AutoCorporateActionsManager:
             self.widgets["start_date_picker"].disabled = False
             self.widgets["end_date_picker"].disabled = False
 
-        pn.state.add_periodic_callback(_fetch_step, period=50, count=1)
-
     def _start_wizard(self) -> None:
         """Analyze results and initialize wizard steps."""
         self.progress_logger_pane.visible = False
@@ -580,6 +578,8 @@ class AutoCorporateActionsManager:
     def _on_finish(self, _) -> None:
         if self.panel_modal:
             self.panel_modal.close()
+        if "state" in self.data_dict:
+            self.data_dict["state"].param.trigger("refresh_event")
         pn.state.notifications.success("Corporate actions review completed.")
 
     # =========================================================================
@@ -712,6 +712,8 @@ class AutoCorporateActionsManager:
             self._pending_actions.remove(action)
         self._render_step()
         self._refresh_last_update_date()
+        if "state" in self.data_dict:
+            self.data_dict["state"].param.trigger("refresh_event")
 
     def _reopen_self(self) -> None:
         """Used as back callback from sub-modals."""
@@ -725,6 +727,8 @@ class AutoCorporateActionsManager:
             self._pending_actions.remove(action)
         self._render_step()
         self._refresh_last_update_date()
+        if "state" in self.data_dict:
+            self.data_dict["state"].param.trigger("refresh_event")
 
     def _make_approve_all_cb(self, action_type: str, actions: List[Dict]):
         def _cb(_):
@@ -738,6 +742,8 @@ class AutoCorporateActionsManager:
                     log.error("Failed to approve %s: %s", action_type, e)
             self._render_step()
             self._refresh_last_update_date()
+            if "state" in self.data_dict:
+                self.data_dict["state"].param.trigger("refresh_event")
             pn.state.notifications.success(f"Approved {count} {action_type} action(s).")
 
         return _cb
@@ -761,6 +767,8 @@ class AutoCorporateActionsManager:
                 self._pending_actions.remove(action)
             self._render_step()
             self._refresh_last_update_date()
+            if "state" in self.data_dict:
+                self.data_dict["state"].param.trigger("refresh_event")
             pn.state.notifications.success(
                 f"Approved {action['action_type']} for {action['stock']}"
             )
